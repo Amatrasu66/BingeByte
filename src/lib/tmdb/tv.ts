@@ -1,0 +1,140 @@
+import { tmdbFetch } from "./client";
+import { TMDB_CONFIG } from "./config";
+import {
+  normalizeTVShow,
+  normalizeTVDetails,
+  normalizeSeasonDetails,
+  normalizeCredits,
+  normalizePaginated,
+} from "./normalizers";
+import type {
+  TMDBTVShow,
+  TMDBTVShowDetails,
+  TMDBSeasonDetails,
+  TMDBCreditsResponse,
+  TMDBGenreListResponse,
+  TMDBPaginatedResponse,
+  TMDBGenre,
+  NormalizedMedia,
+  NormalizedTVDetails,
+  NormalizedSeasonDetails,
+  NormalizedCredits,
+  PaginatedResult,
+} from "./types";
+
+/**
+ * Retrieves trending TV series over a time window ('day' | 'week').
+ */
+export async function getTrendingTV(
+  timeWindow: "day" | "week" = "day",
+  page: number = 1
+): Promise<PaginatedResult<NormalizedMedia>> {
+  const data = await tmdbFetch<TMDBPaginatedResponse<TMDBTVShow>>(
+    `/trending/tv/${timeWindow}`,
+    {
+      params: { page },
+      revalidate: TMDB_CONFIG.REVALIDATE.DYNAMIC,
+    }
+  );
+  return normalizePaginated(data, normalizeTVShow);
+}
+
+/**
+ * Retrieves popular TV series.
+ */
+export async function getPopularTV(
+  page: number = 1
+): Promise<PaginatedResult<NormalizedMedia>> {
+  const data = await tmdbFetch<TMDBPaginatedResponse<TMDBTVShow>>("/tv/popular", {
+    params: { page },
+    revalidate: TMDB_CONFIG.REVALIDATE.DYNAMIC,
+  });
+  return normalizePaginated(data, normalizeTVShow);
+}
+
+/**
+ * Retrieves top-rated TV series.
+ */
+export async function getTopRatedTV(
+  page: number = 1
+): Promise<PaginatedResult<NormalizedMedia>> {
+  const data = await tmdbFetch<TMDBPaginatedResponse<TMDBTVShow>>("/tv/top_rated", {
+    params: { page },
+    revalidate: TMDB_CONFIG.REVALIDATE.DYNAMIC,
+  });
+  return normalizePaginated(data, normalizeTVShow);
+}
+
+/**
+ * Retrieves comprehensive TV series details by ID.
+ */
+export async function getTVDetails(id: number): Promise<NormalizedTVDetails> {
+  const data = await tmdbFetch<TMDBTVShowDetails>(`/tv/${id}`, {
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+  return normalizeTVDetails(data);
+}
+
+/**
+ * Retrieves TV season details including episode listings.
+ */
+export async function getTVSeasonDetails(
+  tvId: number,
+  seasonNumber: number
+): Promise<NormalizedSeasonDetails> {
+  const data = await tmdbFetch<TMDBSeasonDetails>(`/tv/${tvId}/season/${seasonNumber}`, {
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+  return normalizeSeasonDetails(data);
+}
+
+/**
+ * Retrieves cast and crew credits for a TV series.
+ */
+export async function getTVCredits(id: number): Promise<NormalizedCredits> {
+  const data = await tmdbFetch<TMDBCreditsResponse>(`/tv/${id}/credits`, {
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+  return normalizeCredits(data);
+}
+
+/**
+ * Retrieves TV series similar to a specific series.
+ */
+export async function getSimilarTV(
+  id: number,
+  page: number = 1
+): Promise<PaginatedResult<NormalizedMedia>> {
+  const data = await tmdbFetch<TMDBPaginatedResponse<TMDBTVShow>>(`/tv/${id}/similar`, {
+    params: { page },
+    revalidate: TMDB_CONFIG.REVALIDATE.DYNAMIC,
+  });
+  return normalizePaginated(data, normalizeTVShow);
+}
+
+/**
+ * Retrieves curated recommendations based on a specific TV series.
+ */
+export async function getTVRecommendations(
+  id: number,
+  page: number = 1
+): Promise<PaginatedResult<NormalizedMedia>> {
+  const data = await tmdbFetch<TMDBPaginatedResponse<TMDBTVShow>>(
+    `/tv/${id}/recommendations`,
+    {
+      params: { page },
+      revalidate: TMDB_CONFIG.REVALIDATE.DYNAMIC,
+    }
+  );
+  return normalizePaginated(data, normalizeTVShow);
+}
+
+/**
+ * Retrieves the full list of official TV series genres.
+ */
+export async function getTVGenres(): Promise<TMDBGenre[]> {
+  const data = await tmdbFetch<TMDBGenreListResponse>("/genre/tv/list", {
+    revalidate: TMDB_CONFIG.REVALIDATE.STATIC,
+  });
+  return data.genres || [];
+}
