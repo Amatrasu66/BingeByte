@@ -1,15 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  /* BingeByte Brand Foundation Tokens (design/design.md) */
-  --color-background: #151319;
-  --color-surface: #1B1820;
-  --color-surface-deep: #100F13;
-  --color-text-primary: #F5F3F7;
-  --color-text-secondary: #AAA5B2;
-  --color-border-subtle: #302B36;
-  --color-white: #FFFFFF;
+  /* ==========================================================================
+     BingeByte Brand Foundation Tokens (from design/design.md)
+     ========================================================================== */
+  --color-background: #151319;        /* Main page canvas background */
+  --color-surface: #1B1820;           /* Elevated panels, cards, nav surfaces */
+  --color-surface-elevated: #221E29;  /* Popovers, menus, elevated modals */
+  --color-surface-deep: #100F13;      /* Darker recessed overlays and footers */
+  --color-text-primary: #F5F3F7;      /* Primary copy, headings, and wordmark */
+  --color-text-secondary: #AAA5B2;    /* Secondary copy, captions, and metadata */
+  --color-text-muted: #7A7482;        /* Subdued labels, timestamps, and hints */
+  --color-border-subtle: #302B36;     /* Quiet dividers, card boundaries */
+  --color-border-hover: #484152;      /* Interactive border hover state */
+  --color-white: #FFFFFF;             /* High-contrast accents and active state */
 
+  /* Focus & Accessibility */
+  --color-focus-ring: #F5F3F7;
+  --color-focus-offset: #151319;
+
+  /* Layout & Geometry */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Animation & Transitions */
+  --ease-cinematic: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+
+  /* Tailwind CSS default mappings */
   --background: var(--color-background);
   --foreground: var(--color-text-primary);
 }
@@ -17,10 +39,13 @@
 @theme inline {
   --color-background: var(--color-background);
   --color-surface: var(--color-surface);
+  --color-surface-elevated: var(--color-surface-elevated);
   --color-surface-deep: var(--color-surface-deep);
   --color-text-primary: var(--color-text-primary);
   --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
   --color-border-subtle: var(--color-border-subtle);
+  --color-border-hover: var(--color-border-hover);
   --color-white: var(--color-white);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -36,6 +61,13 @@
 html {
   color-scheme: dark;
   background-color: var(--color-background);
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
@@ -46,4 +78,35 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Common utility classes for interactive focus and typography */
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Skeleton animation respecting prefers-reduced-motion */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-subtle {
+    animation: none;
+    opacity: 0.8;
+  }
 }
