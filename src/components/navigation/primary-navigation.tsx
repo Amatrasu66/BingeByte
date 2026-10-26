@@ -12,9 +12,10 @@ export interface NavItem {
 
 export const navigationItems: NavItem[] = [
   { label: "Home", href: "/" },
-  { label: "Movies", href: "/#movies" },
-  { label: "TV Shows", href: "/#tv" },
-  { label: "Anime", href: "/#anime" },
+  { label: "Movies", href: "/movies" },
+  { label: "TV Shows", href: "/tv" },
+  { label: "Anime", href: "/anime" },
+  { label: "Search", href: "/search" },
 ];
 
 export interface PrimaryNavigationProps {
@@ -30,7 +31,10 @@ export function PrimaryNavigation({ className }: PrimaryNavigationProps) {
       className={cn("hidden md:flex items-center gap-1", className)}
     >
       {navigationItems.map((item) => {
-        const isActive = pathname === item.href;
+        const isActive =
+          item.href === "/"
+            ? pathname === "/"
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}

@@ -4,17 +4,18 @@ import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { MainContainer } from "@/components/layout/main-container";
-import { SearchInput } from "@/components/search/search-input";
+import { SearchInput, type SearchContentType } from "@/components/search/search-input";
 import { MediaCard, mediaItemToCardProps } from "@/components/media/media-card";
 import { MediaCardSkeleton } from "@/components/media/media-card-skeleton";
 import { Button } from "@/components/ui/button";
 import { TMDBAttribution } from "@/components/home/tmdb-attribution";
-import { multiSearch } from "@/lib/tmdb";
+import { multiSearch, searchMovies, searchTV, getSafeErrorMessage } from "@/lib/tmdb";
 import type { PaginatedResult, NormalizedMedia } from "@/lib/tmdb/types";
 
 export interface SearchPageProps {
   searchParams: Promise<{
     q?: string;
+    type?: string;
     page?: string;
   }>;
 }
@@ -38,32 +39,63 @@ function SearchFallback() {
   );
 }
 
+function buildSearchUrl(q: string, type: SearchContentType, page: number): string {
+  const params = new URLSearchParams();
+  if (q) {
+    params.set("q", q);
+  }
+  if (type !== "all") {
+    params.set("type", type);
+  }
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+  const queryStr = params.toString();
+  return queryStr ? `/search?${queryStr}` : "/search";
+}
+
 async function SearchResults({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const rawQuery = params.q || "";
   const query = rawQuery.trim();
-  const currentPage = Math.max(1, parseInt(params.page || "1", 10) || 1);
+
+  // Validate and sanitize content type
+  const rawType = params.type || "all";
+  const contentType: SearchContentType =
+    rawType === "movie" || rawType === "tv" ? rawType : "all";
+
+  // Validate and clamp page number (1 <= page <= 500)
+  const rawPage = parseInt(params.page || "1", 10);
+  const currentPage = !Number.isNaN(rawPage) && rawPage >= 1 ? Math.min(500, rawPage) : 1;
 
   let searchResult: PaginatedResult<NormalizedMedia> | null = null;
   let searchError: string | null = null;
 
   if (query) {
     try {
-      searchResult = await multiSearch(query, currentPage);
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        searchError = err.message;
+      if (contentType === "movie") {
+        searchResult = await searchMovies(query, currentPage);
+      } else if (contentType === "tv") {
+        searchResult = await searchTV(query, currentPage);
       } else {
-        searchError = "An unexpected error occurred while searching.";
+        searchResult = await multiSearch(query, currentPage);
       }
+    } catch (err: unknown) {
+      searchError = getSafeErrorMessage(err);
     }
   }
 
   const results = searchResult?.results || [];
   const totalResults = searchResult?.totalResults || 0;
-  const totalPages = searchResult?.totalPages || 0;
+  const totalPages = Math.min(500, searchResult?.totalPages || 0);
   const hasPrevious = currentPage > 1;
   const hasNext = currentPage < totalPages;
+
+  const typeLabels: Record<SearchContentType, string> = {
+    all: "All Titles",
+    movie: "Movies",
+    tv: "TV Series",
+  };
 
   return (
     <div className="space-y-8 sm:space-y-12">
@@ -76,7 +108,7 @@ async function SearchResults({ searchParams }: SearchPageProps) {
           Find movies, television series, and anime across the TMDB entertainment database.
         </p>
         <div className="pt-2">
-          <SearchInput initialQuery={query} />
+          <SearchInput initialQuery={query} initialType={contentType} />
         </div>
       </div>
 
@@ -85,16 +117,21 @@ async function SearchResults({ searchParams }: SearchPageProps) {
         <div className="space-y-6">
           {/* Results Summary Heading */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[var(--color-border-subtle)]">
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--color-text-primary)]">
-              Results for &ldquo;{query}&rdquo;
-            </h2>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-lg font-semibold tracking-tight text-[var(--color-text-primary)]">
+                Results for &ldquo;{query}&rdquo;
+              </h2>
+              <span className="text-xs text-[var(--color-text-secondary)]">
+                in {typeLabels[contentType]}
+              </span>
+            </div>
             <span className="text-xs text-[var(--color-text-secondary)]">
-              {totalResults} {totalResults === 1 ? "title" : "titles"} found
+              {totalResults.toLocaleString()} {totalResults === 1 ? "title" : "titles"} found
               {totalPages > 1 && ` · Page ${currentPage} of ${totalPages}`}
             </span>
           </div>
 
-          {/* Error Message */}
+          {/* Safe Error Message */}
           {searchError ? (
             <div
               role="alert"
@@ -103,7 +140,7 @@ async function SearchResults({ searchParams }: SearchPageProps) {
               <p className="font-medium text-[var(--color-text-primary)]">
                 Search request could not be completed.
               </p>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+              <p className="mt-1 text-xs text-[var(--color-text-secondary)] max-w-md mx-auto">
                 {searchError}
               </p>
             </div>
@@ -119,13 +156,11 @@ async function SearchResults({ searchParams }: SearchPageProps) {
                 ))}
               </div>
 
-              {/* Pagination Controls */}
+              {/* Pagination Controls preserving query and content type */}
               {totalPages > 1 && (
                 <div className="pt-8 flex items-center justify-center gap-3">
                   {hasPrevious ? (
-                    <Link
-                      href={`/search?q=${encodeURIComponent(query)}&page=${currentPage - 1}`}
-                    >
+                    <Link href={buildSearchUrl(query, contentType, currentPage - 1)}>
                       <Button variant="secondary" size="sm">
                         <ChevronLeft className="h-4 w-4 mr-1" />
                         Previous
@@ -143,9 +178,7 @@ async function SearchResults({ searchParams }: SearchPageProps) {
                   </span>
 
                   {hasNext ? (
-                    <Link
-                      href={`/search?q=${encodeURIComponent(query)}&page=${currentPage + 1}`}
-                    >
+                    <Link href={buildSearchUrl(query, contentType, currentPage + 1)}>
                       <Button variant="secondary" size="sm">
                         Next
                         <ChevronRight className="h-4 w-4 ml-1" />
@@ -166,8 +199,10 @@ async function SearchResults({ searchParams }: SearchPageProps) {
               <p className="text-base font-medium text-[var(--color-text-primary)]">
                 No titles found matching &ldquo;{query}&rdquo;
               </p>
-              <p className="mt-2 text-xs text-[var(--color-text-muted)] max-w-md mx-auto">
-                Try checking for spelling errors, using fewer keywords, or searching for a general franchise name.
+              <p className="mt-2 text-xs text-[var(--color-text-secondary)] max-w-md mx-auto">
+                {contentType !== "all"
+                  ? `Try switching to "All Titles" or searching for a broader term.`
+                  : "Try checking for spelling errors, using fewer keywords, or searching for a general franchise name."}
               </p>
             </div>
           )}
@@ -178,7 +213,7 @@ async function SearchResults({ searchParams }: SearchPageProps) {
           <p className="text-base font-medium text-[var(--color-text-primary)]">
             Enter a title or keyword above
           </p>
-          <p className="mt-2 text-xs text-[var(--color-text-muted)] max-w-md mx-auto">
+          <p className="mt-2 text-xs text-[var(--color-text-secondary)] max-w-md mx-auto">
             Search across millions of movies, television series, and anime titles powered by The Movie Database.
           </p>
         </div>

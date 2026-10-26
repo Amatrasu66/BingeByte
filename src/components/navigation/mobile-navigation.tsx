@@ -52,7 +52,10 @@ export function MobileNavigation({ className }: MobileNavigationProps) {
         >
           <nav aria-label="Mobile Navigation" className="flex flex-col gap-2">
             {navigationItems.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
               return (
                 <Link
                   key={item.href}

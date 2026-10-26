@@ -130,4 +130,46 @@ describe("TMDB Search Validation & Execution", () => {
     assert.strictEqual(result.results[1].title, "Dune: Prophecy");
     assert.strictEqual(result.results[1].mediaType, "tv");
   });
+
+  it("should perform TV search with query and custom page number", async () => {
+    let requestedUrl = "";
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requestedUrl = input.toString();
+      return new Response(
+        JSON.stringify({
+          page: 2,
+          total_pages: 5,
+          total_results: 50,
+          results: [
+            {
+              id: 1399,
+              name: "Game of Thrones",
+              original_name: "Game of Thrones",
+              overview: "Seven noble families fight...",
+              poster_path: "/got.jpg",
+              backdrop_path: null,
+              first_air_date: "2011-04-17",
+              vote_average: 8.4,
+              vote_count: 22000,
+              popularity: 300,
+              genre_ids: [10765, 18],
+              original_language: "en",
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }) as typeof fetch;
+
+    const result = await searchTV("Thrones", 2);
+
+    assert.match(requestedUrl, /\/search\/tv/);
+    assert.match(requestedUrl, /query=Thrones/);
+    assert.match(requestedUrl, /page=2/);
+    assert.strictEqual(result.results.length, 1);
+    assert.strictEqual(result.results[0].title, "Game of Thrones");
+    assert.strictEqual(result.results[0].mediaType, "tv");
+    assert.strictEqual(result.page, 2);
+    assert.strictEqual(result.totalPages, 5);
+  });
 });

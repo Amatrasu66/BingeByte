@@ -11,9 +11,9 @@ BingeByte is designed as a premium, art-directed entertainment discovery applica
 The application is structured for phased, incremental development:
 - **Phase 1: Project Foundation** (Complete)
 - **Phase 2: Design System & Tokens** (Complete)
-- **Phase 3: TMDB Metadata Integration** (Current)
-- **Phase 4: Homepage & Discovery**
-- **Phase 5: Search & Filtering**
+- **Phase 3: TMDB Metadata Integration** (Complete)
+- **Phase 4: Homepage & Discovery** (Complete)
+- **Phase 5: Search & Advanced Filtering** (Complete)
 - **Phase 6: Detail Pages (Movies, TV, Anime)**
 - **Phase 7: Playback Provider Integration**
 - **Phase 8: Supabase Foundation (Optional Persistence)**
@@ -96,6 +96,52 @@ The application incorporates a server-only data layer for retrieving entertainme
 ### Attribution
 
 This product uses the TMDB API but is not endorsed or certified by TMDB. BingeByte utilizes TMDB exclusively for catalog metadata and artwork; it does not host, stream, or claim distribution rights to any video content.
+
+---
+
+## Search & Advanced Filtering (Phase 5)
+
+Phase 5 elevates BingeByte's search and discovery into an interactive, URL-driven entertainment discovery platform.
+
+### Unified Search (`/search`)
+
+- **Multi-Mode Discovery**: Search across all supported titles simultaneously (`all`), or filter specifically to `movie` or `tv`.
+- **URL Synchronization**: Query (`q`), content type (`type`), and page (`page`) are stored in the URL for shareable, bookmarkable search results (e.g. `/search?q=dune&type=movie&page=2`).
+- **Input Trimming & Empty Prevention**: Whitespace queries are trimmed before submission, preventing redundant API roundtrips.
+- **Safe Error Display**: Upstream network traces, credentials, and internal URLs are sanitized into user-friendly messages via `getSafeErrorMessage`.
+
+### Dedicated Discovery Pages
+
+1. **Movies (`/movies`)**: Full motion-picture discovery powered by TMDB `/discover/movie`.
+2. **TV Series (`/tv`)**: Serialized television discovery powered by TMDB `/discover/tv`.
+3. **Anime (`/anime`)**: Curated Japanese animated series discovery utilizing TMDB Animation genre (`16`) and Japanese audio origin (`ja`).
+
+> **Anime Classification Note:** TMDB does not feature a dedicated native anime schema. BingeByte curates this catalog by combining the official Animation genre (`16`) with Japanese audio language (`ja`), offering secondary genre and year filtering while transparently communicating this metadata-based approximation.
+
+### Supported Filter Model & URL Conventions
+
+| Parameter | Type / Format | Purpose | Example |
+| :--- | :--- | :--- | :--- |
+| `genre` | Positive Integer | Filters by official TMDB genre ID | `genre=28` (Action) |
+| `yearFrom` | 4-Digit Year (1888–Future) | Earliest release / first-air year | `yearFrom=2015` |
+| `yearTo` | 4-Digit Year (1888–Future) | Latest release / first-air year | `yearTo=2024` |
+| `rating` | Float (0–10) | Minimum audience vote threshold | `rating=7.5` |
+| `language` | 2-Letter ISO 639-1 | Filter by original production language | `language=ja` |
+| `sort` | Allowlisted Enum | Discover ordering strategy | `sort=vote_average.desc` |
+| `page` | Integer (1–500) | Catalog page number (bounded to TMDB cap) | `page=2` |
+
+**Allowed Sort Options:**
+- `popularity.desc` (Most Popular — Default)
+- `popularity.asc` (Least Popular)
+- `vote_average.desc` (Highest Rated)
+- `vote_average.asc` (Lowest Rated)
+- `release_date.desc` (Newest First)
+- `release_date.asc` (Oldest First)
+
+**Example Shareable Filter URL:**
+```
+/movies?genre=878&yearFrom=2010&yearTo=2024&rating=8&sort=vote_average.desc&page=1
+```
 
 ---
 

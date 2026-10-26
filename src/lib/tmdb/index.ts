@@ -47,3 +47,5 @@ export * from "./tv";
 export * from "./anime";
 export * from "./search";
 export * from "./trending";
+export * from "./discover";
+export * from "./errors";
