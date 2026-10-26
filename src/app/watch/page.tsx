@@ -7,12 +7,13 @@ import { ConfigNotice } from "@/components/home/config-notice";
 import { TMDBAttribution } from "@/components/home/tmdb-attribution";
 import {
   WatchHero,
-  TrailerPlayer,
+  PlaybackContainer,
   WatchProvidersSection,
   TVEpisodeNavigation,
   WatchErrorState,
   WatchSkeleton,
 } from "@/components/watch";
+import { getDefaultPlaybackProvider } from "@/lib/playback";
 import {
   parseWatchParams,
   getMovieDetails,
@@ -141,12 +142,24 @@ async function WatchContent({ searchParams }: WatchPageProps) {
         ? providersRes.value
         : normalizeWatchProviders(id, null, region);
 
+    const playbackProvider = getDefaultPlaybackProvider();
+    const playbackResult = playbackProvider.resolvePlayback({
+      mediaType: "movie",
+      tmdbId: id,
+    });
+
     return (
       <AppShell>
         <WatchHero media={movie} />
 
         <MainContainer className="py-8 space-y-10">
-          <TrailerPlayer trailer={primaryTrailer} title={movie.title} />
+          <PlaybackContainer
+            playbackResult={playbackResult}
+            trailer={primaryTrailer}
+            title={movie.title}
+            mediaType="movie"
+            mediaId={id}
+          />
 
           <WatchProvidersSection
             providers={providers}
@@ -210,6 +223,18 @@ async function WatchContent({ searchParams }: WatchPageProps) {
   const currentEpisode: NormalizedEpisode | null =
     initialSeasonData?.episodes.find((e) => e.episodeNumber === episode) ?? null;
 
+  const playbackProvider = getDefaultPlaybackProvider();
+  const playbackResult = playbackProvider.resolvePlayback({
+    mediaType: "tv",
+    tmdbId: id,
+    season,
+    episode,
+  });
+
+  const displayTitle = currentEpisode
+    ? `${show.title} — S${season}:E${episode} "${currentEpisode.name}"`
+    : show.title;
+
   return (
     <AppShell>
       <WatchHero
@@ -219,7 +244,15 @@ async function WatchContent({ searchParams }: WatchPageProps) {
       />
 
       <MainContainer className="py-8 space-y-10">
-        <TrailerPlayer trailer={primaryTrailer} title={show.title} />
+        <PlaybackContainer
+          playbackResult={playbackResult}
+          trailer={primaryTrailer}
+          title={displayTitle}
+          mediaType="tv"
+          mediaId={id}
+          season={season}
+          episode={episode}
+        />
 
         {show.seasons && show.seasons.length > 0 && (
           <TVEpisodeNavigation

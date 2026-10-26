@@ -16,10 +16,11 @@ The application is structured for phased, incremental development:
 - **Phase 5: Search & Advanced Filtering** (Complete)
 - **Phase 6: Detail Pages (Movies, TV, Anime)** (Complete)
 - **Phase 7: Playback Provider Integration** (Complete)
-- **Phase 8: Supabase Foundation (Optional Persistence)**
-- **Phase 9: Progressive Web App (PWA)**
-- **Phase 10: Quality Assurance & Optimization**
-- **Phase 11: Deployment**
+- **Phase 8: Playback Provider Adapter and Integration (NexStream)** (Complete)
+- **Phase 9: Supabase Foundation (Optional Persistence)**
+- **Phase 10: Progressive Web App (PWA)**
+- **Phase 11: Quality Assurance & Optimization**
+- **Phase 12: Deployment**
 
 ---
 
@@ -225,6 +226,52 @@ The dedicated `/watch` route accepts strictly validated search parameters:
 - **Strict Permanent Error Exclusions**: Permanent HTTP statuses (`401 Unauthorized`, `404 Not Found`, `429 Rate Limit`) fail fast without redundant retries.
 - **Independent Failure Isolation**: Supplementary trailer and watch-provider requests are isolated so that optional failures never crash the entire page.
 - **Sanitized Errors**: Error screens and logger traces never expose API keys, bearer tokens, or internal endpoints.
+
+---
+
+## Playback Provider Architecture & NexStream Integration (Phase 8)
+
+Phase 8 introduces a modular, replaceable video playback provider architecture. The initial provider adapter integrates with **NexStream by CodeSpecter**, wrapped behind a typed interface, strict parameter validation, restrictive iframe sandboxing, and an authorization/licensing safety gate.
+
+### Architecture Overview (`src/lib/playback/`)
+
+- [`types.ts`](./src/lib/playback/types.ts): Typed provider abstraction.
+  - `PlaybackProvider`: Standardized contract for movie and TV embed URL construction.
+  - `PlaybackTarget`: Discriminated union for movie targets vs. television season/episode targets.
+  - `PlaybackEmbedResult`: Discriminated result type (`ready`, `unverified`, `unconfigured`, `disabled`, `invalid_input`).
+- [`nexstream.ts`](./src/lib/playback/nexstream.ts): NexStream provider implementation.
+  - Movie embed URL: `/embed/movie/{tmdbId}?apikey={API_KEY}`
+  - TV episode embed URL: `/embed/tv/{tmdbId}/{season}/{episode}?apikey={API_KEY}`
+  - Strictly validates positive integer IDs, season numbers (allowing Season 0 specials), and episode numbers.
+  - Sanitizes and validates the base URL against approved protocols.
+- [`index.ts`](./src/lib/playback/index.ts): Barrel export and `getDefaultPlaybackProvider()` factory.
+
+### Content Licensing & Authorization Safety Gate
+
+BingeByte maintains a firm commitment to legal and transparent distribution:
+- Public embed endpoints do not by themselves establish verified copyright and distribution rights.
+- By default, full playback through NexStream remains **gated** behind a safety verification flag (`PLAYBACK_PROVIDER_ENABLED=true` or `NEXSTREAM_ENABLED=true`).
+- When unverified (the default), the `/watch` route preserves the verified **official YouTube trailer** and **JustWatch streaming discovery** experience, while presenting a clear educational gate state in the stream player.
+- When verified, the player seamlessly embeds the 16:9 iframe stream with restrictive permissions (`sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"`, `loading="lazy"`, `referrerPolicy="origin"`).
+
+### Dual-Mode Playback Experience (`PlaybackContainer`)
+
+The `/watch` page presents an integrated player with a top segmented mode switcher:
+1. **Stream Player**: Renders `EmbedPlayer` with loading state, load-failure detection, retry action, and return-to-details links.
+2. **Official Trailer**: Retains direct YouTube trailer playback via `TrailerPlayer`.
+
+### Environment Configuration
+
+```env
+# NexStream / Playback Provider Configuration
+NEXSTREAM_BASE_URL=https://api.codespecters.com
+NEXSTREAM_API_KEY=your_nexstream_api_key
+
+# Content Licensing Safety Gate (Defaults to false/gated)
+PLAYBACK_PROVIDER_ENABLED=false
+```
+
+> **Security Note:** Provider API keys are never printed, logged, or exposed in error messages or diagnostic traces. Base URLs and embed paths are strictly validated to prevent arbitrary URL injection.
 
 ---
 
