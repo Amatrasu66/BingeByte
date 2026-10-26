@@ -35,7 +35,9 @@ export function AppHeader({ className, onSearchClick }: AppHeaderProps) {
           </Link>
 
           {/* Desktop Navigation */}
-          <PrimaryNavigation />
+          <React.Suspense fallback={<nav className="hidden md:flex items-center gap-6 h-5 w-48" />}>
+            <PrimaryNavigation />
+          </React.Suspense>
         </div>
 
         {/* Right: Actions & Mobile Navigation */}
@@ -59,7 +61,9 @@ export function AppHeader({ className, onSearchClick }: AppHeaderProps) {
             </Link>
           )}
 
-          <MobileNavigation />
+          <React.Suspense fallback={<div className="h-10 w-10 md:hidden" />}>
+            <MobileNavigation />
+          </React.Suspense>
         </div>
       </MainContainer>
     </header>

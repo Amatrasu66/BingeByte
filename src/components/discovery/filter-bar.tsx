@@ -8,6 +8,7 @@ import {
   DISCOVER_SORT_OPTIONS,
   SORT_LABELS,
   SUPPORTED_LANGUAGES,
+  DEFAULT_MAX_YEAR,
   type DiscoverSortOption,
   type ValidatedDiscoverFilters,
   serializeDiscoverSearchParams,
@@ -61,6 +62,7 @@ export function FilterBar({
   const [draftSort, setDraftSort] = React.useState<DiscoverSortOption>(
     currentFilters.sortBy || "popularity.desc"
   );
+  const maxYear = DEFAULT_MAX_YEAR;
 
   // Synchronize draft state if URL updates from external navigation
   const [prevFilters, setPrevFilters] = React.useState(currentFilters);
@@ -216,7 +218,7 @@ export function FilterBar({
                 id="filter-year-from"
                 type="number"
                 min="1900"
-                max={new Date().getFullYear() + 5}
+                max={maxYear}
                 placeholder="From"
                 value={draftYearFrom}
                 onChange={(e) => setDraftYearFrom(e.target.value)}
@@ -227,7 +229,7 @@ export function FilterBar({
                 id="filter-year-to"
                 type="number"
                 min="1900"
-                max={new Date().getFullYear() + 5}
+                max={maxYear}
                 placeholder="To"
                 value={draftYearTo}
                 onChange={(e) => setDraftYearTo(e.target.value)}

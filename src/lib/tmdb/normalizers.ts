@@ -6,12 +6,14 @@ import type {
   TMDBTVShowDetails,
   TMDBSeasonDetails,
   TMDBCreditsResponse,
+  TMDBVideosResponse,
   TMDBPaginatedResponse,
   NormalizedMedia,
   NormalizedMovieDetails,
   NormalizedTVDetails,
   NormalizedSeasonDetails,
   NormalizedCredits,
+  NormalizedVideo,
   PaginatedResult,
 } from "./types";
 
@@ -209,3 +211,82 @@ export function mediaItemToCardProps(item: NormalizedMedia): {
     href: `/${item.mediaType}/${item.id}`,
   };
 }
+
+/**
+ * Normalizes video entries returned by TMDB /videos endpoint.
+ */
+export function normalizeVideos(raw?: TMDBVideosResponse | null): NormalizedVideo[] {
+  if (!raw || !Array.isArray(raw.results)) return [];
+  return raw.results
+    .filter((v) => Boolean(v && v.key && typeof v.key === "string"))
+    .map((v) => ({
+      id: v.id,
+      name: v.name || "Video",
+      key: v.key,
+      site: v.site || "YouTube",
+      type: v.type || "Trailer",
+      official: Boolean(v.official),
+      publishedAt: v.published_at || "",
+    }));
+}
+
+/**
+ * Selects the best primary trailer for viewing (prioritizing official YouTube trailers).
+ */
+export function selectPrimaryTrailer(videos: NormalizedVideo[]): NormalizedVideo | null {
+  if (!Array.isArray(videos) || videos.length === 0) return null;
+  const youtubeVideos = videos.filter((v) => v.site.toLowerCase() === "youtube");
+  if (youtubeVideos.length === 0) return null;
+
+  // 1. Official Trailer
+  const officialTrailer = youtubeVideos.find(
+    (v) => v.type.toLowerCase() === "trailer" && v.official
+  );
+  if (officialTrailer) return officialTrailer;
+
+  // 2. Any Trailer
+  const anyTrailer = youtubeVideos.find((v) => v.type.toLowerCase() === "trailer");
+  if (anyTrailer) return anyTrailer;
+
+  // 3. Official Teaser
+  const officialTeaser = youtubeVideos.find(
+    (v) => v.type.toLowerCase() === "teaser" && v.official
+  );
+  if (officialTeaser) return officialTeaser;
+
+  // 4. Any Teaser
+  const anyTeaser = youtubeVideos.find((v) => v.type.toLowerCase() === "teaser");
+  if (anyTeaser) return anyTeaser;
+
+  // 5. First available YouTube video
+  return youtubeVideos[0] ?? null;
+}
+
+/**
+ * Formats a runtime in minutes into a human-readable string (e.g. "2h 15m" or "45m").
+ */
+export function formatRuntime(minutes: number | null | undefined): string {
+  if (typeof minutes !== "number" || minutes <= 0 || isNaN(minutes)) {
+    return "—";
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours === 0) return `${remainingMinutes}m`;
+  if (remainingMinutes === 0) return `${hours}h`;
+  return `${hours}h ${remainingMinutes}m`;
+}
+
+/**
+ * Formats a numeric USD currency value (e.g. budget/revenue).
+ */
+export function formatCurrency(amount: number | null | undefined): string {
+  if (typeof amount !== "number" || amount <= 0 || isNaN(amount)) {
+    return "—";
+  }
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+

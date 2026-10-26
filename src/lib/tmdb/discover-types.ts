@@ -72,9 +72,9 @@ export const SUPPORTED_LANGUAGES = [
   { code: "pt", label: "Portuguese" },
 ] as const;
 
-const CURRENT_YEAR = new Date().getFullYear();
-const MIN_ALLOWED_YEAR = 1888;
-const MAX_ALLOWED_YEAR = CURRENT_YEAR + 10;
+export const MIN_ALLOWED_YEAR = 1888;
+export const DEFAULT_MAX_YEAR = 2035;
+export const MAX_ALLOWED_YEAR = DEFAULT_MAX_YEAR;
 
 /**
  * Validates and sanitizes raw filter inputs to prevent arbitrary or malformed parameters.

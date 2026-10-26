@@ -5,6 +5,8 @@ import {
   normalizeTVDetails,
   normalizeSeasonDetails,
   normalizeCredits,
+  normalizeVideos,
+  selectPrimaryTrailer,
   normalizePaginated,
 } from "./normalizers";
 import type {
@@ -12,6 +14,7 @@ import type {
   TMDBTVShowDetails,
   TMDBSeasonDetails,
   TMDBCreditsResponse,
+  TMDBVideosResponse,
   TMDBGenreListResponse,
   TMDBPaginatedResponse,
   TMDBGenre,
@@ -19,6 +22,8 @@ import type {
   NormalizedTVDetails,
   NormalizedSeasonDetails,
   NormalizedCredits,
+  NormalizedVideo,
+  DetailedTVData,
   PaginatedResult,
 } from "./types";
 
@@ -138,3 +143,54 @@ export async function getTVGenres(): Promise<TMDBGenre[]> {
   });
   return data.genres || [];
 }
+
+/**
+ * Retrieves video assets (trailers, teasers, featurettes) for a TV show.
+ */
+export async function getTVVideos(id: number): Promise<NormalizedVideo[]> {
+  const data = await tmdbFetch<TMDBVideosResponse>(`/tv/${id}/videos`, {
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+  return normalizeVideos(data);
+}
+
+type RawTVShowDetailsWithAppend = TMDBTVShowDetails & {
+  credits?: TMDBCreditsResponse;
+  videos?: TMDBVideosResponse;
+  recommendations?: TMDBPaginatedResponse<TMDBTVShow>;
+  similar?: TMDBPaginatedResponse<TMDBTVShow>;
+};
+
+/**
+ * Retrieves full TV series detail bundle (details, credits, videos, recommendations, similar)
+ * in a single efficient request using TMDB's append_to_response capability.
+ */
+export async function getDetailedTV(id: number): Promise<DetailedTVData> {
+  const raw = await tmdbFetch<RawTVShowDetailsWithAppend>(`/tv/${id}`, {
+    params: {
+      append_to_response: "credits,videos,recommendations,similar",
+    },
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+
+  const details = normalizeTVDetails(raw);
+  const credits = raw.credits
+    ? normalizeCredits(raw.credits)
+    : { id, cast: [], crew: [] };
+  const videos = raw.videos ? normalizeVideos(raw.videos) : [];
+  const primaryTrailer = selectPrimaryTrailer(videos);
+  const recommendations = raw.recommendations?.results
+    ? raw.recommendations.results.map(normalizeTVShow)
+    : [];
+  const similar = raw.similar?.results ? raw.similar.results.map(normalizeTVShow) : [];
+
+  return {
+    details,
+    credits,
+    videos,
+    primaryTrailer,
+    recommendations,
+    similar,
+  };
+}
+

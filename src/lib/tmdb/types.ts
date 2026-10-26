@@ -254,3 +254,55 @@ export interface NormalizedCredits {
   cast: NormalizedCredit[];
   crew: NormalizedCredit[];
 }
+
+/**
+ * TMDB Video & Trailer Interfaces
+ */
+export interface TMDBVideo {
+  id: string;
+  iso_639_1: string;
+  iso_3166_1: string;
+  name: string;
+  key: string;
+  site: string;
+  size: number;
+  type: string;
+  official: boolean;
+  published_at: string;
+}
+
+export interface TMDBVideosResponse {
+  id: number;
+  results: TMDBVideo[];
+}
+
+export interface NormalizedVideo {
+  id: string;
+  name: string;
+  key: string;
+  site: string;
+  type: string;
+  official: boolean;
+  publishedAt: string;
+}
+
+/**
+ * Rich Detail Payload combining core details, credits, trailers, and recommendations.
+ */
+export interface DetailedMovieData {
+  details: NormalizedMovieDetails;
+  credits: NormalizedCredits;
+  videos: NormalizedVideo[];
+  primaryTrailer: NormalizedVideo | null;
+  recommendations: NormalizedMedia[];
+  similar: NormalizedMedia[];
+}
+
+export interface DetailedTVData {
+  details: NormalizedTVDetails;
+  credits: NormalizedCredits;
+  videos: NormalizedVideo[];
+  primaryTrailer: NormalizedVideo | null;
+  recommendations: NormalizedMedia[];
+  similar: NormalizedMedia[];
+}

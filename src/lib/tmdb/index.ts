@@ -39,6 +39,10 @@ export {
   normalizeTVDetails,
   normalizeSeasonDetails,
   normalizeCredits,
+  normalizeVideos,
+  selectPrimaryTrailer,
+  formatRuntime,
+  formatCurrency,
 } from "./normalizers";
 
 export * from "./types";

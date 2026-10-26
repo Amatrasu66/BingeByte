@@ -4,18 +4,23 @@ import {
   normalizeMovie,
   normalizeMovieDetails,
   normalizeCredits,
+  normalizeVideos,
+  selectPrimaryTrailer,
   normalizePaginated,
 } from "./normalizers";
 import type {
   TMDBMovie,
   TMDBMovieDetails,
   TMDBCreditsResponse,
+  TMDBVideosResponse,
   TMDBGenreListResponse,
   TMDBPaginatedResponse,
   TMDBGenre,
   NormalizedMedia,
   NormalizedMovieDetails,
   NormalizedCredits,
+  NormalizedVideo,
+  DetailedMovieData,
   PaginatedResult,
 } from "./types";
 
@@ -148,3 +153,54 @@ export async function getMovieGenres(): Promise<TMDBGenre[]> {
   });
   return data.genres || [];
 }
+
+/**
+ * Retrieves video assets (trailers, teasers, behind-the-scenes) for a movie.
+ */
+export async function getMovieVideos(id: number): Promise<NormalizedVideo[]> {
+  const data = await tmdbFetch<TMDBVideosResponse>(`/movie/${id}/videos`, {
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+  return normalizeVideos(data);
+}
+
+type RawMovieDetailsWithAppend = TMDBMovieDetails & {
+  credits?: TMDBCreditsResponse;
+  videos?: TMDBVideosResponse;
+  recommendations?: TMDBPaginatedResponse<TMDBMovie>;
+  similar?: TMDBPaginatedResponse<TMDBMovie>;
+};
+
+/**
+ * Retrieves full movie detail bundle (details, credits, videos, recommendations, similar)
+ * in a single efficient request using TMDB's append_to_response capability.
+ */
+export async function getDetailedMovie(id: number): Promise<DetailedMovieData> {
+  const raw = await tmdbFetch<RawMovieDetailsWithAppend>(`/movie/${id}`, {
+    params: {
+      append_to_response: "credits,videos,recommendations,similar",
+    },
+    revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
+  });
+
+  const details = normalizeMovieDetails(raw);
+  const credits = raw.credits
+    ? normalizeCredits(raw.credits)
+    : { id, cast: [], crew: [] };
+  const videos = raw.videos ? normalizeVideos(raw.videos) : [];
+  const primaryTrailer = selectPrimaryTrailer(videos);
+  const recommendations = raw.recommendations?.results
+    ? raw.recommendations.results.map(normalizeMovie)
+    : [];
+  const similar = raw.similar?.results ? raw.similar.results.map(normalizeMovie) : [];
+
+  return {
+    details,
+    credits,
+    videos,
+    primaryTrailer,
+    recommendations,
+    similar,
+  };
+}
+
