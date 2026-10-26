@@ -3,8 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-import { getPosterUrl } from "@/lib/tmdb/images";
-import type { NormalizedMedia } from "@/lib/tmdb/types";
 
 export interface MediaCardProps {
   id: string | number;
@@ -19,20 +17,7 @@ export interface MediaCardProps {
   className?: string;
 }
 
-/**
- * Helper to convert a normalized TMDB media item to MediaCardProps
- */
-export function mediaItemToCardProps(item: NormalizedMedia): MediaCardProps {
-  return {
-    id: item.id,
-    title: item.title,
-    posterUrl: getPosterUrl(item.posterPath, "w500"),
-    year: item.releaseDate ? item.releaseDate.split("-")[0] : null,
-    mediaType: item.mediaType,
-    rating: item.voteAverage > 0 ? item.voteAverage.toFixed(1) : undefined,
-    href: `/${item.mediaType}/${item.id}`,
-  };
-}
+export { mediaItemToCardProps } from "@/lib/tmdb/normalizers";
 
 const mediaTypeLabels: Record<NonNullable<MediaCardProps["mediaType"]>, string> = {
   movie: "Movie",

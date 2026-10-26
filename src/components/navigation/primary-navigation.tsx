@@ -11,10 +11,10 @@ export interface NavItem {
 }
 
 export const navigationItems: NavItem[] = [
-  { label: "Movies", href: "/movies" },
-  { label: "TV Series", href: "/tv" },
-  { label: "Anime", href: "/anime" },
-  { label: "Categories", href: "/categories" },
+  { label: "Home", href: "/" },
+  { label: "Movies", href: "/#movies" },
+  { label: "TV Shows", href: "/#tv" },
+  { label: "Anime", href: "/#anime" },
 ];
 
 export interface PrimaryNavigationProps {

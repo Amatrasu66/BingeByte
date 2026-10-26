@@ -1,3 +1,4 @@
+import { getPosterUrl } from "./images";
 import type {
   TMDBMovie,
   TMDBTVShow,
@@ -183,5 +184,28 @@ export function normalizeCredits(raw: TMDBCreditsResponse): NormalizedCredits {
           profilePath: c.profile_path ?? null,
         }))
       : [],
+  };
+}
+
+/**
+ * Transforms a normalized media item into props suitable for a MediaCard.
+ */
+export function mediaItemToCardProps(item: NormalizedMedia): {
+  id: number;
+  title: string;
+  posterUrl: string | null;
+  year: string | null;
+  mediaType: "movie" | "tv";
+  rating?: string;
+  href: string;
+} {
+  return {
+    id: item.id,
+    title: item.title,
+    posterUrl: getPosterUrl(item.posterPath, "w500"),
+    year: item.releaseDate ? item.releaseDate.split("-")[0] : null,
+    mediaType: item.mediaType,
+    rating: item.voteAverage > 0 ? item.voteAverage.toFixed(1) : undefined,
+    href: `/${item.mediaType}/${item.id}`,
   };
 }

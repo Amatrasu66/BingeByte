@@ -40,14 +40,24 @@ export function AppHeader({ className, onSearchClick }: AppHeaderProps) {
 
         {/* Right: Actions & Mobile Navigation */}
         <div className="flex items-center gap-2">
-          <IconButton
-            aria-label="Search entertainment catalog"
-            variant="ghost"
-            size="md"
-            onClick={onSearchClick}
-          >
-            <Search className="h-4 w-4" />
-          </IconButton>
+          {onSearchClick ? (
+            <IconButton
+              aria-label="Search entertainment catalog"
+              variant="ghost"
+              size="md"
+              onClick={onSearchClick}
+            >
+              <Search className="h-4 w-4" />
+            </IconButton>
+          ) : (
+            <Link
+              href="/search"
+              aria-label="Search entertainment catalog"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] focus-ring transition-colors duration-150"
+            >
+              <Search className="h-4 w-4" />
+            </Link>
+          )}
 
           <MobileNavigation />
         </div>

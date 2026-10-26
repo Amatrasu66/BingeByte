@@ -44,5 +44,6 @@ export {
 export * from "./types";
 export * from "./movies";
 export * from "./tv";
+export * from "./anime";
 export * from "./search";
 export * from "./trending";
