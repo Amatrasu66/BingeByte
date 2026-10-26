@@ -159,8 +159,7 @@ export function EmbedPlayer({
               title={`${title} - Video Player`}
               allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
               allowFullScreen
-              sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-              loading="lazy"
+              loading="eager"
               referrerPolicy="origin"
               onLoad={() => setIsLoading(false)}
               onError={() => {

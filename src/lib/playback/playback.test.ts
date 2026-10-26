@@ -76,7 +76,19 @@ describe("Phase 9 Playback Provider Adapter (NextStream)", () => {
 
     it("should validate source URLs", () => {
       assert.strictEqual(isValidSourceUrl("https://embedmaster.link/movie/550"), true);
+      assert.strictEqual(isValidSourceUrl("https://embdmstrplayer.com/v2/xyz"), true);
       assert.strictEqual(isValidSourceUrl("http://embedmaster.link/tv/1399/1/1"), true);
+      assert.strictEqual(isValidSourceUrl("https://codespecters.com/embed/550"), true);
+      assert.strictEqual(isValidSourceUrl("https://api.codespecters.com/embed/550"), true);
+      assert.strictEqual(isValidSourceUrl("https://unauthorized-domain.com/movie/550"), false);
+      assert.strictEqual(
+        isValidSourceUrl("https://custom-proxy.internal/movie/550", "custom-proxy.internal"),
+        true
+      );
+      assert.strictEqual(
+        isValidSourceUrl("https://attacker.com/movie/550", "custom-proxy.internal"),
+        false
+      );
       assert.strictEqual(isValidSourceUrl("javascript:alert(1)"), false);
       assert.strictEqual(isValidSourceUrl("not-a-url"), false);
       assert.strictEqual(isValidSourceUrl(null), false);
@@ -243,6 +255,35 @@ describe("Phase 9 Playback Provider Adapter (NextStream)", () => {
       assert.strictEqual(result.status, "api_error");
       assert.match(result.reason, /unable to reach/i);
     });
+
+    it("should handle malformed JSON response gracefully with malformed reason", async () => {
+      globalThis.fetch = (async () => {
+        return new Response("<<<Not Valid JSON>>>", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(result.status, "api_error");
+      assert.match(result.reason, /malformed response/i);
+    });
+
+    it("should handle request timeout (TimeoutError and AbortError)", async () => {
+      globalThis.fetch = (async () => {
+        const err = new Error("The operation was aborted due to timeout");
+        err.name = "TimeoutError";
+        throw err;
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(result.status, "api_error");
+      assert.match(result.reason, /timed out/i);
+    });
   });
 
   describe("Validation of Invalid Parameters", () => {
@@ -288,6 +329,15 @@ describe("Phase 9 Playback Provider Adapter (NextStream)", () => {
       const result = await provider.getMovieEmbedUrl(550);
       assert.strictEqual(result.status, "unconfigured");
       assert.match(result.reason, /API key/i);
+    });
+
+    it("should respect NEXSTREAM_TIMEOUT_MS environment variable", () => {
+      process.env.NEXSTREAM_TIMEOUT_MS = "30000";
+      const provider = new NexStreamAdapter();
+      // Internal private method access via cast for verification
+      const timeout = (provider as unknown as { getTimeoutMs(): number }).getTimeoutMs();
+      assert.strictEqual(timeout, 30000);
+      delete process.env.NEXSTREAM_TIMEOUT_MS;
     });
   });
 

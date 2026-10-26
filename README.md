@@ -212,7 +212,7 @@ The dedicated `/watch` route accepts strictly validated search parameters:
 
 - **Artificial Authorization Gate Removed**: The obsolete "Provider Authorization Verification Required" screen that unconditionally blocked playback has been completely removed. Genuine provider responses now drive player state directly.
 - **JustWatch & External Directories Removed**: All JustWatch links, logos, availability queries, and external streaming provider badges have been eradicated. BingeByte provides a self-contained cinematic playback and discovery experience.
-- **Responsive 16:9 Player (`EmbedPlayer`)**: Loaded in an isolated iframe with secure sandbox attributes (`sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"`), loading spinner, and graceful retry overlay.
+- **Responsive 16:9 Player (`EmbedPlayer`)**: Loaded in an isolated iframe with media permissions (`allow="autoplay; fullscreen; encrypted-media; picture-in-picture"`), loading spinner, and graceful retry overlay.
 - **Dual-Mode Container (`PlaybackContainer`)**: Defaults to the active stream player ("Watch Stream") with instant switching to the official YouTube trailer preview ("Official Trailer") when available.
 
 ### TV Season and Episode Navigation

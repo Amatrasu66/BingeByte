@@ -25,7 +25,7 @@ export interface NexStreamConfig extends PlaybackProviderConfig {
 }
 
 const DEFAULT_NEXSTREAM_BASE_URL = "https://api.codespecters.com";
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 25000;
 
 interface NextStreamApiResponse {
   success?: boolean;
@@ -93,14 +93,43 @@ export function sanitizeBaseUrl(rawUrl?: string): string | null {
   }
 }
 
+const PERMITTED_PLAYBACK_HOSTS = [
+  "embedmaster.link",
+  "embdmstrplayer.com",
+  "codespecters.com",
+];
+
 /**
- * Validates that a resolved source URL is a legitimate web destination.
+ * Validates that a resolved source URL is a legitimate web destination
+ * matching the approved provider streaming domains or the configured base URL host.
  */
-export function isValidSourceUrl(url: string | null | undefined): boolean {
+export function isValidSourceUrl(
+  url: string | null | undefined,
+  customHost?: string
+): boolean {
   if (!url || typeof url !== "string") return false;
   try {
     const parsed = new URL(url.trim());
-    return parsed.protocol === "https:" || parsed.protocol === "http:";
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    for (const host of PERMITTED_PLAYBACK_HOSTS) {
+      if (hostname === host || hostname.endsWith(`.${host}`)) {
+        return true;
+      }
+    }
+    if (customHost) {
+      const customLower = customHost.toLowerCase();
+      if (hostname === customLower || hostname.endsWith(`.${customLower}`)) {
+        return true;
+      }
+    }
+    // Allow localhost / 127.0.0.1 for local test environments
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -147,7 +176,20 @@ export class NexStreamAdapter implements PlaybackProvider {
    * Resolves the active timeout.
    */
   private getTimeoutMs(): number {
-    return this.explicitConfig?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    if (
+      typeof this.explicitConfig?.timeoutMs === "number" &&
+      this.explicitConfig.timeoutMs > 0
+    ) {
+      return this.explicitConfig.timeoutMs;
+    }
+    const envTimeout = process.env.NEXSTREAM_TIMEOUT_MS;
+    if (envTimeout) {
+      const parsed = parseInt(envTimeout, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+    return DEFAULT_TIMEOUT_MS;
   }
 
   /**
@@ -236,8 +278,8 @@ export class NexStreamAdapter implements PlaybackProvider {
         typeof json.sources[0]?.url === "string"
       ) {
         const sourceUrl = json.sources[0].url.trim();
-
-        if (isValidSourceUrl(sourceUrl)) {
+        const baseHost = baseUrl ? new URL(baseUrl).hostname : undefined;
+        if (isValidSourceUrl(sourceUrl, baseHost)) {
           return {
             status: "ready",
             url: sourceUrl,
@@ -256,14 +298,20 @@ export class NexStreamAdapter implements PlaybackProvider {
         target,
       };
     } catch (error) {
+      const isTimeout =
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError");
+      const isMalformed = error instanceof SyntaxError;
+
       return {
         status: "api_error",
         providerId: this.id,
         providerName: this.name,
-        reason:
-          error instanceof Error && error.name === "TimeoutError"
-            ? "Request to streaming provider timed out."
-            : "Unable to reach streaming provider. Please check network connectivity.",
+        reason: isTimeout
+          ? "Request to streaming provider timed out."
+          : isMalformed
+          ? "Streaming provider returned a malformed response."
+          : "Unable to reach streaming provider. Please check network connectivity.",
         target,
       };
     }
@@ -382,8 +430,9 @@ export class NexStreamAdapter implements PlaybackProvider {
         typeof json.sources[0]?.url === "string"
       ) {
         const sourceUrl = json.sources[0].url.trim();
+        const baseHost = baseUrl ? new URL(baseUrl).hostname : undefined;
 
-        if (isValidSourceUrl(sourceUrl)) {
+        if (isValidSourceUrl(sourceUrl, baseHost)) {
           return {
             status: "ready",
             url: sourceUrl,
@@ -402,14 +451,20 @@ export class NexStreamAdapter implements PlaybackProvider {
         target,
       };
     } catch (error) {
+      const isTimeout =
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError");
+      const isMalformed = error instanceof SyntaxError;
+
       return {
         status: "api_error",
         providerId: this.id,
         providerName: this.name,
-        reason:
-          error instanceof Error && error.name === "TimeoutError"
-            ? "Request to streaming provider timed out."
-            : "Unable to reach streaming provider. Please check network connectivity.",
+        reason: isTimeout
+          ? "Request to streaming provider timed out."
+          : isMalformed
+          ? "Streaming provider returned a malformed response."
+          : "Unable to reach streaming provider. Please check network connectivity.",
         target,
       };
     }
