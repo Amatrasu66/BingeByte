@@ -28,6 +28,7 @@ export {
   getBackdropUrl,
   getProfileUrl,
   getStillUrl,
+  getLogoUrl,
 } from "./images";
 
 export {
@@ -41,6 +42,9 @@ export {
   normalizeCredits,
   normalizeVideos,
   selectPrimaryTrailer,
+  isValidYouTubeKey,
+  isSafeExternalUrl,
+  normalizeWatchProviders,
   formatRuntime,
   formatCurrency,
 } from "./normalizers";
@@ -53,3 +57,4 @@ export * from "./search";
 export * from "./trending";
 export * from "./discover";
 export * from "./errors";
+export * from "./watch-params";

@@ -14,8 +14,8 @@ The application is structured for phased, incremental development:
 - **Phase 3: TMDB Metadata Integration** (Complete)
 - **Phase 4: Homepage & Discovery** (Complete)
 - **Phase 5: Search & Advanced Filtering** (Complete)
-- **Phase 6: Detail Pages (Movies, TV, Anime)**
-- **Phase 7: Playback Provider Integration**
+- **Phase 6: Detail Pages (Movies, TV, Anime)** (Complete)
+- **Phase 7: Playback Provider Integration** (Complete)
 - **Phase 8: Supabase Foundation (Optional Persistence)**
 - **Phase 9: Progressive Web App (PWA)**
 - **Phase 10: Quality Assurance & Optimization**
@@ -171,6 +171,60 @@ Phase 5 elevates BingeByte's search and discovery into an interactive, URL-drive
 ├── tsconfig.json         # TypeScript configuration
 └── README.md             # Project documentation
 ```
+
+---
+
+## Playback & Streaming Discovery (Phase 7)
+
+Phase 7 introduces the official watch and playback-discovery experience for movies and television series. BingeByte prioritizes honesty and legality: it never claims to host full films or episodes, instead combining official YouTube trailer playback with regional streaming availability discovery powered by TMDB and JustWatch.
+
+### Watch Route (`/watch`) & URL Conventions
+
+The dedicated `/watch` route accepts strictly validated search parameters:
+- `type`: `movie` | `tv` (required, validated enum)
+- `id`: Positive integer TMDB media identifier (required)
+- `season`: Non-negative integer (e.g., `1`, `0` for specials) for TV shows (defaults to `1`)
+- `episode`: Positive integer for TV episodes (defaults to `1`)
+- `region`: ISO 3166-1 alpha-2 country code (defaults to `IN` - India)
+
+**URL Examples:**
+- **Movie Watch Guide**: `/watch?type=movie&id=550`
+- **TV Series Episode Guide**: `/watch?type=tv&id=1399&season=1&episode=1`
+- **Specials / Alternate Seasons**: `/watch?type=tv&id=1399&season=0&episode=1`
+
+### Official Trailer Playback
+- Prioritizes official trailers hosted on YouTube, with graceful fallback to official teasers or secondary clips.
+- Embedded using privacy-conscious `youtube-nocookie.com` iframes with responsive 16:9 cinematic aspect ratios.
+- All YouTube video identifiers are sanitized and validated against safe character patterns (`/^[a-zA-Z0-9_-]{3,64}$/`) before embed URL construction.
+- Direct external link to YouTube provided alongside an informative empty state when no playable trailer exists.
+- Transparent non-deceptive badge: clearly reminds users that BingeByte showcases official trailers, teasers, and metadata discovery.
+
+### Streaming Provider Discovery (JustWatch via TMDB)
+- Queries TMDB watch provider endpoints (`/movie/{id}/watch/providers` and `/tv/{id}/watch/providers`).
+- Default target region set to **India (`IN`)**, with modular architecture supporting any ISO 3166-1 country code.
+- Categorizes availability into standardized discovery groups:
+  - **Stream**: Subscription streaming platforms (e.g., Netflix, JioCinema, Disney+ Hotstar, Prime Video, SonyLIV).
+  - **Free / Ads**: Ad-supported platforms.
+  - **Rent**: Digital rental availability.
+  - **Buy**: Digital purchase availability.
+- Official TMDB / JustWatch destination links are strictly checked against an allowlist of verified partner domains (`themoviedb.org`, `justwatch.com`, `youtube.com`) to prevent open redirects or unsafe protocols.
+- When no verified deep link exists, safely defaults to the title's official TMDB watch page.
+
+### Attribution
+- **JustWatch Attribution**: *"Streaming availability data provided by JustWatch via TMDB. BingeByte does not stream or host full movie or TV files directly."*
+- **TMDB Attribution**: Preserved across all catalog and provider components.
+
+### TV Season and Episode Navigation
+- Embedded on both the TV detail page and the `/watch` TV route.
+- Allows browsing all seasons (including specials) and viewing episode stills, titles, runtimes, and overviews.
+- In-memory client caching avoids duplicate network requests when switching between seasons.
+- Direct links allow deep-linking directly into any episode guide.
+
+### Reliability & Error Handling
+- **Bounded Transient Retry**: Conservative single retry with 300ms backoff in `tmdbFetch` for transient network / socket failures (`ECONNRESET`, `ETIMEDOUT`, `fetch failed`).
+- **Strict Permanent Error Exclusions**: Permanent HTTP statuses (`401 Unauthorized`, `404 Not Found`, `429 Rate Limit`) fail fast without redundant retries.
+- **Independent Failure Isolation**: Supplementary trailer and watch-provider requests are isolated so that optional failures never crash the entire page.
+- **Sanitized Errors**: Error screens and logger traces never expose API keys, bearer tokens, or internal endpoints.
 
 ---
 

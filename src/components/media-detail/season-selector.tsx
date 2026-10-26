@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useState, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { getStillUrl } from "@/lib/tmdb/images";
 import { formatRuntime } from "@/lib/tmdb/normalizers";
 import type {
@@ -260,6 +261,29 @@ export function SeasonSelector({
                           No episode overview recorded.
                         </p>
                       )}
+
+                      <div className="mt-3 pt-2 border-t border-[var(--color-border-subtle)] flex items-center justify-between">
+                        <Link
+                          href={`/watch?type=tv&id=${tvId}&season=${selectedSeasonNumber}&episode=${ep.episodeNumber}`}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-primary)] hover:underline focus-ring rounded"
+                        >
+                          <span>Watch Episode Guide</span>
+                          <svg
+                            className="h-3 w-3"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </Link>
+                      </div>
                     </div>
                   </article>
                 );

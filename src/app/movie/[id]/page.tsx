@@ -11,14 +11,17 @@ import {
   MediaMetadataGrid,
   RecommendationsSection,
 } from "@/components/media-detail";
+import { WatchProvidersSection } from "@/components/watch";
 import {
   getDetailedMovie,
   getMovieDetails,
+  getMovieWatchProviders,
   getBackdropUrl,
   getPosterUrl,
   TMDBNotFoundError,
   TMDBConfigError,
 } from "@/lib/tmdb";
+import type { NormalizedWatchProviders } from "@/lib/tmdb/types";
 
 export interface MoviePageProps {
   params: Promise<{ id: string }>;
@@ -76,10 +79,21 @@ export default async function MovieDetailPage({ params }: MoviePageProps) {
   }
 
   let data = null;
+  let providers: NormalizedWatchProviders | null = null;
   let isConfigError = false;
 
   try {
-    data = await getDetailedMovie(numericId);
+    const [detailRes, providersRes] = await Promise.allSettled([
+      getDetailedMovie(numericId),
+      getMovieWatchProviders(numericId, "IN"),
+    ]);
+
+    if (detailRes.status === "rejected") {
+      throw detailRes.reason;
+    }
+
+    data = detailRes.value;
+    providers = providersRes.status === "fulfilled" ? providersRes.value : null;
   } catch (error) {
     if (error instanceof TMDBNotFoundError) {
       notFound();
@@ -114,6 +128,14 @@ export default async function MovieDetailPage({ params }: MoviePageProps) {
         )}
 
         <MediaMetadataGrid media={data.details} credits={data.credits} />
+
+        {providers && (
+          <WatchProvidersSection
+            providers={providers}
+            mediaType="movie"
+            mediaId={numericId}
+          />
+        )}
 
         {(data.recommendations.length > 0 || data.similar.length > 0) && (
           <RecommendationsSection

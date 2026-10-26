@@ -306,3 +306,46 @@ export interface DetailedTVData {
   recommendations: NormalizedMedia[];
   similar: NormalizedMedia[];
 }
+
+/**
+ * TMDB Watch Provider API & Normalized Interfaces
+ */
+export interface TMDBWatchProviderItem {
+  logo_path: string | null;
+  provider_id: number;
+  provider_name: string;
+  display_priority: number;
+}
+
+export interface TMDBCountryWatchProviders {
+  link?: string;
+  flatrate?: TMDBWatchProviderItem[];
+  rent?: TMDBWatchProviderItem[];
+  buy?: TMDBWatchProviderItem[];
+  free?: TMDBWatchProviderItem[];
+  ads?: TMDBWatchProviderItem[];
+}
+
+export interface TMDBWatchProvidersResponse {
+  id: number;
+  results: Record<string, TMDBCountryWatchProviders>;
+}
+
+export interface NormalizedWatchProviderItem {
+  id: number;
+  name: string;
+  logoPath: string | null;
+  displayPriority: number;
+}
+
+export interface NormalizedWatchProviders {
+  id: number;
+  region: string;
+  link: string | null;
+  stream: NormalizedWatchProviderItem[]; // subscription streaming
+  free: NormalizedWatchProviderItem[];   // free / ad-supported viewing
+  rent: NormalizedWatchProviderItem[];   // rental
+  buy: NormalizedWatchProviderItem[];    // purchase
+  hasProviders: boolean;
+}
+

@@ -12,15 +12,18 @@ import {
   MediaMetadataGrid,
   RecommendationsSection,
 } from "@/components/media-detail";
+import { WatchProvidersSection } from "@/components/watch";
 import {
   getDetailedTV,
   getTVDetails,
   getTVSeasonDetails,
+  getTVWatchProviders,
   getBackdropUrl,
   getPosterUrl,
   TMDBNotFoundError,
   TMDBConfigError,
 } from "@/lib/tmdb";
+import type { NormalizedWatchProviders } from "@/lib/tmdb/types";
 
 export interface AnimeDetailPageProps {
   params: Promise<{ id: string }>;
@@ -79,10 +82,21 @@ export default async function AnimeDetailPage({ params }: AnimeDetailPageProps) 
 
   let data = null;
   let initialSeasonData = null;
+  let providers: NormalizedWatchProviders | null = null;
   let isConfigError = false;
 
   try {
-    data = await getDetailedTV(numericId);
+    const [detailRes, providersRes] = await Promise.allSettled([
+      getDetailedTV(numericId),
+      getTVWatchProviders(numericId, "IN"),
+    ]);
+
+    if (detailRes.status === "rejected") {
+      throw detailRes.reason;
+    }
+
+    data = detailRes.value;
+    providers = providersRes.status === "fulfilled" ? providersRes.value : null;
 
     // Prefetch initial season details server-side for zero-delay episode display
     if (data.details.seasons && data.details.seasons.length > 0) {
@@ -139,6 +153,14 @@ export default async function AnimeDetailPage({ params }: AnimeDetailPageProps) 
         )}
 
         <MediaMetadataGrid media={data.details} credits={data.credits} />
+
+        {providers && (
+          <WatchProvidersSection
+            providers={providers}
+            mediaType="tv"
+            mediaId={numericId}
+          />
+        )}
 
         {(data.recommendations.length > 0 || data.similar.length > 0) && (
           <RecommendationsSection

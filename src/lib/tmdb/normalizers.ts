@@ -14,6 +14,10 @@ import type {
   NormalizedSeasonDetails,
   NormalizedCredits,
   NormalizedVideo,
+  TMDBWatchProvidersResponse,
+  TMDBWatchProviderItem,
+  NormalizedWatchProviders,
+  NormalizedWatchProviderItem,
   PaginatedResult,
 } from "./types";
 
@@ -231,11 +235,59 @@ export function normalizeVideos(raw?: TMDBVideosResponse | null): NormalizedVide
 }
 
 /**
- * Selects the best primary trailer for viewing (prioritizing official YouTube trailers).
+ * Validates whether a given key conforms to standard YouTube video identifier structure.
+ */
+export function isValidYouTubeKey(key: string | null | undefined): boolean {
+  if (!key || typeof key !== "string") return false;
+  // YouTube video keys are URL-safe base64 identifiers (typically 11 chars in production).
+  // We strictly require alphanumeric characters, hyphens, and underscores between 3 and 64 chars
+  // to prevent XSS/injection, whitespace, and path traversal while accommodating standard IDs and fixtures.
+  return /^[a-zA-Z0-9_-]{3,64}$/.test(key.trim());
+}
+
+/**
+ * Validates that an external destination matches the project's strict allowlist of permitted hosts.
+ * Prevents open redirects, javascript: execution, or malicious external destinations.
+ */
+const PERMITTED_EXTERNAL_HOSTS = new Set([
+  "themoviedb.org",
+  "www.themoviedb.org",
+  "justwatch.com",
+  "www.justwatch.com",
+  "youtube.com",
+  "www.youtube.com",
+  "youtu.be",
+  "www.youtube-nocookie.com",
+]);
+
+export function isSafeExternalUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (PERMITTED_EXTERNAL_HOSTS.has(hostname)) {
+      return true;
+    }
+    if (hostname.endsWith(".themoviedb.org") || hostname.endsWith(".justwatch.com")) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Selects the best primary trailer for viewing (prioritizing official YouTube trailers with valid keys).
  */
 export function selectPrimaryTrailer(videos: NormalizedVideo[]): NormalizedVideo | null {
   if (!Array.isArray(videos) || videos.length === 0) return null;
-  const youtubeVideos = videos.filter((v) => v.site.toLowerCase() === "youtube");
+  const youtubeVideos = videos.filter(
+    (v) => v.site.toLowerCase() === "youtube" && isValidYouTubeKey(v.key)
+  );
   if (youtubeVideos.length === 0) return null;
 
   // 1. Official Trailer
@@ -288,5 +340,79 @@ export function formatCurrency(amount: number | null | undefined): string {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+/**
+ * Normalizes TMDB watch providers for a given region (default: "IN" for India).
+ * Organizes providers into stream (subscription), free/ads, rent, and buy categories.
+ */
+export function normalizeWatchProviders(
+  id: number,
+  raw?: TMDBWatchProvidersResponse | null,
+  region: string = "IN"
+): NormalizedWatchProviders {
+  const normalizedRegion = (region || "IN").toUpperCase();
+  const emptyResult: NormalizedWatchProviders = {
+    id,
+    region: normalizedRegion,
+    link: null,
+    stream: [],
+    free: [],
+    rent: [],
+    buy: [],
+    hasProviders: false,
+  };
+
+  if (!raw || !raw.results || typeof raw.results !== "object") {
+    return emptyResult;
+  }
+
+  const countryData = raw.results[normalizedRegion];
+  if (!countryData) {
+    return emptyResult;
+  }
+
+  const mapItems = (items?: TMDBWatchProviderItem[]): NormalizedWatchProviderItem[] => {
+    if (!Array.isArray(items)) return [];
+    const seen = new Set<number>();
+    const result: NormalizedWatchProviderItem[] = [];
+
+    for (const item of items) {
+      if (item && item.provider_id && !seen.has(item.provider_id)) {
+        seen.add(item.provider_id);
+        result.push({
+          id: item.provider_id,
+          name: item.provider_name || "Provider",
+          logoPath: item.logo_path ?? null,
+          displayPriority: item.display_priority ?? 0,
+        });
+      }
+    }
+    return result.sort((a, b) => a.displayPriority - b.displayPriority);
+  };
+
+  const stream = mapItems(countryData.flatrate);
+  const combinedFree = [...(countryData.free || []), ...(countryData.ads || [])];
+  const free = mapItems(combinedFree);
+  const rent = mapItems(countryData.rent);
+  const buy = mapItems(countryData.buy);
+
+  const rawLink =
+    countryData.link && typeof countryData.link === "string" ? countryData.link : null;
+  const link = isSafeExternalUrl(rawLink) ? rawLink : null;
+
+  const hasProviders =
+    stream.length > 0 || free.length > 0 || rent.length > 0 || buy.length > 0;
+
+  return {
+    id,
+    region: normalizedRegion,
+    link,
+    stream,
+    free,
+    rent,
+    buy,
+    hasProviders,
+  };
 }
 

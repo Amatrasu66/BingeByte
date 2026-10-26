@@ -257,14 +257,19 @@ export function MediaDetailHero({
                   </Button>
                 )}
 
-                {/* Honest Streaming Action (Preserves watch trajectory without false claims) */}
-                <div className="relative group">
+                {/* Where to Watch & Streaming Providers Action */}
+                <Link
+                  href={
+                    isMovie
+                      ? `/watch?type=movie&id=${media.id}`
+                      : `/watch?type=tv&id=${media.id}&season=1&episode=1`
+                  }
+                >
                   <Button
                     variant="secondary"
                     size="md"
-                    disabled
-                    aria-label="Streaming player arriving in Phase 7"
-                    className="opacity-75 cursor-not-allowed gap-2"
+                    className="gap-2"
+                    aria-label={`Where to watch ${media.title}`}
                   >
                     <svg
                       className="h-4 w-4 text-[var(--color-text-secondary)]"
@@ -276,12 +281,9 @@ export function MediaDetailHero({
                       <circle cx="12" cy="12" r="10" />
                       <polygon points="10 8 16 12 10 16 10 8" />
                     </svg>
-                    <span>Watch Stream (Phase 7)</span>
+                    <span>Where to Watch</span>
                   </Button>
-                  <div className="hidden group-hover:block absolute bottom-full mb-2 left-0 w-64 p-2 bg-[var(--color-surface-deep)] border border-[var(--color-border-subtle)] text-[11px] text-[var(--color-text-secondary)] rounded shadow-lg pointer-events-none z-20">
-                    Video streaming backend and dedicated playback player are scheduled for Phase 7.
-                  </div>
-                </div>
+                </Link>
               </div>
             </div>
           </div>
