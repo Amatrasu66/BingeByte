@@ -87,9 +87,9 @@ export function WatchHero({ media, episode, seasonNumber }: WatchHeroProps) {
               </span>
             )}
 
-            {/* Non-deceptive playback guidance badge */}
+            {/* Streaming and trailer playback badge */}
             <span className="rounded bg-[var(--color-surface-deep)]/90 px-2 py-0.5 text-[10px] text-[var(--color-text-secondary)] border border-[var(--color-border-subtle)]">
-              Official Trailers & Streaming Guide
+              Streaming Playback & Official Trailers
             </span>
           </div>
 

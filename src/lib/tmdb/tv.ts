@@ -7,7 +7,6 @@ import {
   normalizeCredits,
   normalizeVideos,
   selectPrimaryTrailer,
-  normalizeWatchProviders,
   normalizePaginated,
 } from "./normalizers";
 import type {
@@ -16,7 +15,6 @@ import type {
   TMDBSeasonDetails,
   TMDBCreditsResponse,
   TMDBVideosResponse,
-  TMDBWatchProvidersResponse,
   TMDBGenreListResponse,
   TMDBPaginatedResponse,
   TMDBGenre,
@@ -25,7 +23,6 @@ import type {
   NormalizedSeasonDetails,
   NormalizedCredits,
   NormalizedVideo,
-  NormalizedWatchProviders,
   DetailedTVData,
   PaginatedResult,
 } from "./types";
@@ -197,20 +194,5 @@ export async function getDetailedTV(id: number): Promise<DetailedTVData> {
   };
 }
 
-/**
- * Retrieves regional streaming, rental, and purchase providers for a TV series (default region: IN).
- */
-export async function getTVWatchProviders(
-  id: number,
-  region: string = "IN"
-): Promise<NormalizedWatchProviders> {
-  const data = await tmdbFetch<TMDBWatchProvidersResponse>(
-    `/tv/${id}/watch/providers`,
-    {
-      revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
-    }
-  );
-  return normalizeWatchProviders(id, data, region);
-}
 
 

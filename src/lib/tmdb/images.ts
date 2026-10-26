@@ -66,14 +66,5 @@ export function getStillUrl(
   return getTMDBImageUrl(path, size);
 }
 
-/**
- * Constructs a logo image URL for watch providers.
- * Default size: w92.
- */
-export function getLogoUrl(
-  path: string | null | undefined,
-  size: string = "w92"
-): string | null {
-  return getTMDBImageUrl(path, size);
-}
+
 

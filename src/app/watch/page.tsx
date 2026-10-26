@@ -8,7 +8,6 @@ import { TMDBAttribution } from "@/components/home/tmdb-attribution";
 import {
   WatchHero,
   PlaybackContainer,
-  WatchProvidersSection,
   TVEpisodeNavigation,
   WatchErrorState,
   WatchSkeleton,
@@ -20,17 +19,13 @@ import {
   getTVDetails,
   getMovieVideos,
   getTVVideos,
-  getMovieWatchProviders,
-  getTVWatchProviders,
   getTVSeasonDetails,
   selectPrimaryTrailer,
-  normalizeWatchProviders,
   TMDBNotFoundError,
   TMDBConfigError,
 } from "@/lib/tmdb";
 import type {
   NormalizedVideo,
-  NormalizedWatchProviders,
   NormalizedSeasonDetails,
   NormalizedEpisode,
 } from "@/lib/tmdb/types";
@@ -41,7 +36,6 @@ export interface WatchPageProps {
     id?: string;
     season?: string;
     episode?: string;
-    region?: string;
   }>;
 }
 
@@ -53,8 +47,8 @@ export async function generateMetadata({
 
   if (!validation.success) {
     return {
-      title: "Watch & Streaming Discovery | BingeByte",
-      description: "Discover official trailers, legitimate streaming providers, and episode guides.",
+      title: "Watch | BingeByte",
+      description: "Stream movies and TV series directly on BingeByte.",
     };
   }
 
@@ -64,20 +58,20 @@ export async function generateMetadata({
     if (type === "movie") {
       const movie = await getMovieDetails(id);
       return {
-        title: `Watch ${movie.title} — Official Trailers & Providers | BingeByte`,
-        description: `Explore official trailers and legitimate streaming, rental, and purchase platforms for ${movie.title}.`,
+        title: `Watch ${movie.title} | BingeByte`,
+        description: `Stream ${movie.title} directly on BingeByte.`,
       };
     } else {
       const show = await getTVDetails(id);
       return {
-        title: `Watch ${show.title} — Official Trailers & Providers | BingeByte`,
-        description: `Explore official trailers, episode lists, and legitimate streaming platforms for ${show.title}.`,
+        title: `Watch ${show.title} | BingeByte`,
+        description: `Stream ${show.title} episodes directly on BingeByte.`,
       };
     }
   } catch {
     return {
-      title: "Watch & Streaming Discovery | BingeByte",
-      description: "Discover official trailers and legitimate streaming providers on BingeByte.",
+      title: "Watch | BingeByte",
+      description: "Stream entertainment directly on BingeByte.",
     };
   }
 }
@@ -96,14 +90,23 @@ async function WatchContent({ searchParams }: WatchPageProps) {
   }
 
   const { type, id, season = 1, episode = 1 } = validation.data;
-  const region = (params.region?.trim() || "IN").toUpperCase();
+  const playbackProvider = getDefaultPlaybackProvider();
 
   if (type === "movie") {
-    // Execute movie queries in parallel with independent failure tolerance
-    const [movieRes, videosRes, providersRes] = await Promise.allSettled([
-      getMovieDetails(id),
-      getMovieVideos(id),
-      getMovieWatchProviders(id, region),
+    // Execute movie metadata and playback stream queries in parallel
+    const [movieRes, videosRes, playbackResult] = await Promise.all([
+      getMovieDetails(id).then(
+        (val) => ({ status: "fulfilled" as const, value: val }),
+        (err) => ({ status: "rejected" as const, reason: err })
+      ),
+      getMovieVideos(id).then(
+        (val) => ({ status: "fulfilled" as const, value: val }),
+        (err) => ({ status: "rejected" as const, reason: err })
+      ),
+      playbackProvider.resolvePlayback({
+        mediaType: "movie",
+        tmdbId: id,
+      }),
     ]);
 
     if (movieRes.status === "rejected") {
@@ -112,7 +115,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
         return (
           <WatchErrorState
             title="Movie Not Found"
-            message="The requested movie could not be located in the TMDB catalog."
+            message="The requested movie could not be located in the entertainment catalog."
           />
         );
       }
@@ -128,7 +131,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
       return (
         <WatchErrorState
           title="Unable to Load Movie"
-          message="We encountered an issue retrieving metadata from the entertainment catalog. Please try again shortly."
+          message="We encountered an issue retrieving metadata. Please try again shortly."
         />
       );
     }
@@ -137,16 +140,6 @@ async function WatchContent({ searchParams }: WatchPageProps) {
     const videos: NormalizedVideo[] =
       videosRes.status === "fulfilled" ? videosRes.value : [];
     const primaryTrailer = selectPrimaryTrailer(videos);
-    const providers: NormalizedWatchProviders =
-      providersRes.status === "fulfilled"
-        ? providersRes.value
-        : normalizeWatchProviders(id, null, region);
-
-    const playbackProvider = getDefaultPlaybackProvider();
-    const playbackResult = playbackProvider.resolvePlayback({
-      mediaType: "movie",
-      tmdbId: id,
-    });
 
     return (
       <AppShell>
@@ -161,12 +154,6 @@ async function WatchContent({ searchParams }: WatchPageProps) {
             mediaId={id}
           />
 
-          <WatchProvidersSection
-            providers={providers}
-            mediaType="movie"
-            mediaId={id}
-          />
-
           <TMDBAttribution />
         </MainContainer>
       </AppShell>
@@ -174,11 +161,25 @@ async function WatchContent({ searchParams }: WatchPageProps) {
   }
 
   // TV Series watch content
-  const [tvRes, videosRes, providersRes, seasonRes] = await Promise.allSettled([
-    getTVDetails(id),
-    getTVVideos(id),
-    getTVWatchProviders(id, region),
-    getTVSeasonDetails(id, season),
+  const [tvRes, videosRes, seasonRes, playbackResult] = await Promise.all([
+    getTVDetails(id).then(
+      (val) => ({ status: "fulfilled" as const, value: val }),
+      (err) => ({ status: "rejected" as const, reason: err })
+    ),
+    getTVVideos(id).then(
+      (val) => ({ status: "fulfilled" as const, value: val }),
+      (err) => ({ status: "rejected" as const, reason: err })
+    ),
+    getTVSeasonDetails(id, season).then(
+      (val) => ({ status: "fulfilled" as const, value: val }),
+      (err) => ({ status: "rejected" as const, reason: err })
+    ),
+    playbackProvider.resolvePlayback({
+      mediaType: "tv",
+      tmdbId: id,
+      season,
+      episode,
+    }),
   ]);
 
   if (tvRes.status === "rejected") {
@@ -187,7 +188,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
       return (
         <WatchErrorState
           title="TV Series Not Found"
-          message="The requested television series could not be located in the TMDB catalog."
+          message="The requested television series could not be located in the catalog."
         />
       );
     }
@@ -212,24 +213,12 @@ async function WatchContent({ searchParams }: WatchPageProps) {
   const videos: NormalizedVideo[] =
     videosRes.status === "fulfilled" ? videosRes.value : [];
   const primaryTrailer = selectPrimaryTrailer(videos);
-  const providers: NormalizedWatchProviders =
-    providersRes.status === "fulfilled"
-      ? providersRes.value
-      : normalizeWatchProviders(id, null, region);
 
   const initialSeasonData: NormalizedSeasonDetails | null =
     seasonRes.status === "fulfilled" ? seasonRes.value : null;
 
   const currentEpisode: NormalizedEpisode | null =
     initialSeasonData?.episodes.find((e) => e.episodeNumber === episode) ?? null;
-
-  const playbackProvider = getDefaultPlaybackProvider();
-  const playbackResult = playbackProvider.resolvePlayback({
-    mediaType: "tv",
-    tmdbId: id,
-    season,
-    episode,
-  });
 
   const displayTitle = currentEpisode
     ? `${show.title} — S${season}:E${episode} "${currentEpisode.name}"`
@@ -263,12 +252,6 @@ async function WatchContent({ searchParams }: WatchPageProps) {
             initialSeasonData={initialSeasonData}
           />
         )}
-
-        <WatchProvidersSection
-          providers={providers}
-          mediaType="tv"
-          mediaId={id}
-        />
 
         <TMDBAttribution />
       </MainContainer>

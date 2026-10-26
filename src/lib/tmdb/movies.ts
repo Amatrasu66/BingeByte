@@ -6,7 +6,6 @@ import {
   normalizeCredits,
   normalizeVideos,
   selectPrimaryTrailer,
-  normalizeWatchProviders,
   normalizePaginated,
 } from "./normalizers";
 import type {
@@ -14,7 +13,6 @@ import type {
   TMDBMovieDetails,
   TMDBCreditsResponse,
   TMDBVideosResponse,
-  TMDBWatchProvidersResponse,
   TMDBGenreListResponse,
   TMDBPaginatedResponse,
   TMDBGenre,
@@ -22,7 +20,6 @@ import type {
   NormalizedMovieDetails,
   NormalizedCredits,
   NormalizedVideo,
-  NormalizedWatchProviders,
   DetailedMovieData,
   PaginatedResult,
 } from "./types";
@@ -207,20 +204,5 @@ export async function getDetailedMovie(id: number): Promise<DetailedMovieData> {
   };
 }
 
-/**
- * Retrieves regional streaming, rental, and purchase providers for a movie (default region: IN).
- */
-export async function getMovieWatchProviders(
-  id: number,
-  region: string = "IN"
-): Promise<NormalizedWatchProviders> {
-  const data = await tmdbFetch<TMDBWatchProvidersResponse>(
-    `/movie/${id}/watch/providers`,
-    {
-      revalidate: TMDB_CONFIG.REVALIDATE.DETAILS,
-    }
-  );
-  return normalizeWatchProviders(id, data, region);
-}
 
 

@@ -175,9 +175,11 @@ Phase 5 elevates BingeByte's search and discovery into an interactive, URL-drive
 
 ---
 
-## Playback & Streaming Discovery (Phase 7)
+---
 
-Phase 7 introduces the official watch and playback-discovery experience for movies and television series. BingeByte prioritizes honesty and legality: it never claims to host full films or episodes, instead combining official YouTube trailer playback with regional streaming availability discovery powered by TMDB and JustWatch.
+## Playback & Streaming Integration (Phase 9)
+
+Phase 9 repairs the streaming integration and cleans up all unwanted external directory integrations. BingeByte connects directly to the configured **NextStream by CodeSpecter** API using a secure server-side resolution model, removing the obsolete artificial authorization verification screen and eliminating JustWatch and third-party streaming listings entirely.
 
 ### Watch Route (`/watch`) & URL Conventions
 
@@ -186,92 +188,49 @@ The dedicated `/watch` route accepts strictly validated search parameters:
 - `id`: Positive integer TMDB media identifier (required)
 - `season`: Non-negative integer (e.g., `1`, `0` for specials) for TV shows (defaults to `1`)
 - `episode`: Positive integer for TV episodes (defaults to `1`)
-- `region`: ISO 3166-1 alpha-2 country code (defaults to `IN` - India)
 
 **URL Examples:**
-- **Movie Watch Guide**: `/watch?type=movie&id=550`
-- **TV Series Episode Guide**: `/watch?type=tv&id=1399&season=1&episode=1`
-- **Specials / Alternate Seasons**: `/watch?type=tv&id=1399&season=0&episode=1`
+- **Movie Playback**: `/watch?type=movie&id=550`
+- **TV Series Episode Playback**: `/watch?type=tv&id=1399&season=1&episode=1`
+- **TV Specials / Season 0**: `/watch?type=tv&id=1399&season=0&episode=1`
 
-### Official Trailer Playback
-- Prioritizes official trailers hosted on YouTube, with graceful fallback to official teasers or secondary clips.
-- Embedded using privacy-conscious `youtube-nocookie.com` iframes with responsive 16:9 cinematic aspect ratios.
-- All YouTube video identifiers are sanitized and validated against safe character patterns (`/^[a-zA-Z0-9_-]{3,64}$/`) before embed URL construction.
-- Direct external link to YouTube provided alongside an informative empty state when no playable trailer exists.
-- Transparent non-deceptive badge: clearly reminds users that BingeByte showcases official trailers, teasers, and metadata discovery.
+### NextStream Server-Side Architecture (`src/lib/playback/`)
 
-### Streaming Provider Discovery (JustWatch via TMDB)
-- Queries TMDB watch provider endpoints (`/movie/{id}/watch/providers` and `/tv/{id}/watch/providers`).
-- Default target region set to **India (`IN`)**, with modular architecture supporting any ISO 3166-1 country code.
-- Categorizes availability into standardized discovery groups:
-  - **Stream**: Subscription streaming platforms (e.g., Netflix, JioCinema, Disney+ Hotstar, Prime Video, SonyLIV).
-  - **Free / Ads**: Ad-supported platforms.
-  - **Rent**: Digital rental availability.
-  - **Buy**: Digital purchase availability.
-- Official TMDB / JustWatch destination links are strictly checked against an allowlist of verified partner domains (`themoviedb.org`, `justwatch.com`, `youtube.com`) to prevent open redirects or unsafe protocols.
-- When no verified deep link exists, safely defaults to the title's official TMDB watch page.
+- [`types.ts`](./src/lib/playback/types.ts): Typed provider abstraction.
+  - `PlaybackProvider`: Standardized contract for asynchronous playback resolution (`resolvePlayback`, `getMovieEmbedUrl`, `getTVEmbedUrl`).
+  - `PlaybackTarget`: Discriminated union for movie targets vs. television season/episode targets.
+  - `PlaybackEmbedResult`: Discriminated result type (`ready`, `unavailable`, `unconfigured`, `auth_error`, `api_error`, `invalid_input`).
+- [`nexstream.ts`](./src/lib/playback/nexstream.ts): Server-side NextStream provider implementation.
+  - Server endpoints: `GET /api/movie/{tmdbId}?apikey={KEY}` and `GET /api/tv/{tmdbId}/{season}/{episode}?apikey={KEY}`.
+  - Resolves verified clean playable sources (`embedmaster.link`) on the server.
+  - Keeps `NEXSTREAM_API_KEY` 100% server-side; the secret never appears in client bundles, URLs, HTML, or frontend network calls.
+  - Strictly validates positive integer IDs, non-negative season numbers, and positive episode numbers.
+  - Sanitizes and validates the base URL against approved protocols with bounded 8-second request timeouts.
+- [`index.ts`](./src/lib/playback/index.ts): Barrel export and `getDefaultPlaybackProvider()` factory.
 
-### Attribution
-- **JustWatch Attribution**: *"Streaming availability data provided by JustWatch via TMDB. BingeByte does not stream or host full movie or TV files directly."*
-- **TMDB Attribution**: Preserved across all catalog and provider components.
+### Removal of Artificial Gate & JustWatch
+
+- **Artificial Authorization Gate Removed**: The obsolete "Provider Authorization Verification Required" screen that unconditionally blocked playback has been completely removed. Genuine provider responses now drive player state directly.
+- **JustWatch & External Directories Removed**: All JustWatch links, logos, availability queries, and external streaming provider badges have been eradicated. BingeByte provides a self-contained cinematic playback and discovery experience.
+- **Responsive 16:9 Player (`EmbedPlayer`)**: Loaded in an isolated iframe with secure sandbox attributes (`sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"`), loading spinner, and graceful retry overlay.
+- **Dual-Mode Container (`PlaybackContainer`)**: Defaults to the active stream player ("Watch Stream") with instant switching to the official YouTube trailer preview ("Official Trailer") when available.
 
 ### TV Season and Episode Navigation
+
 - Embedded on both the TV detail page and the `/watch` TV route.
 - Allows browsing all seasons (including specials) and viewing episode stills, titles, runtimes, and overviews.
 - In-memory client caching avoids duplicate network requests when switching between seasons.
-- Direct links allow deep-linking directly into any episode guide.
-
-### Reliability & Error Handling
-- **Bounded Transient Retry**: Conservative single retry with 300ms backoff in `tmdbFetch` for transient network / socket failures (`ECONNRESET`, `ETIMEDOUT`, `fetch failed`).
-- **Strict Permanent Error Exclusions**: Permanent HTTP statuses (`401 Unauthorized`, `404 Not Found`, `429 Rate Limit`) fail fast without redundant retries.
-- **Independent Failure Isolation**: Supplementary trailer and watch-provider requests are isolated so that optional failures never crash the entire page.
-- **Sanitized Errors**: Error screens and logger traces never expose API keys, bearer tokens, or internal endpoints.
-
----
-
-## Playback Provider Architecture & NexStream Integration (Phase 8)
-
-Phase 8 introduces a modular, replaceable video playback provider architecture. The initial provider adapter integrates with **NexStream by CodeSpecter**, wrapped behind a typed interface, strict parameter validation, restrictive iframe sandboxing, and an authorization/licensing safety gate.
-
-### Architecture Overview (`src/lib/playback/`)
-
-- [`types.ts`](./src/lib/playback/types.ts): Typed provider abstraction.
-  - `PlaybackProvider`: Standardized contract for movie and TV embed URL construction.
-  - `PlaybackTarget`: Discriminated union for movie targets vs. television season/episode targets.
-  - `PlaybackEmbedResult`: Discriminated result type (`ready`, `unverified`, `unconfigured`, `disabled`, `invalid_input`).
-- [`nexstream.ts`](./src/lib/playback/nexstream.ts): NexStream provider implementation.
-  - Movie embed URL: `/embed/movie/{tmdbId}?apikey={API_KEY}`
-  - TV episode embed URL: `/embed/tv/{tmdbId}/{season}/{episode}?apikey={API_KEY}`
-  - Strictly validates positive integer IDs, season numbers (allowing Season 0 specials), and episode numbers.
-  - Sanitizes and validates the base URL against approved protocols.
-- [`index.ts`](./src/lib/playback/index.ts): Barrel export and `getDefaultPlaybackProvider()` factory.
-
-### Content Licensing & Authorization Safety Gate
-
-BingeByte maintains a firm commitment to legal and transparent distribution:
-- Public embed endpoints do not by themselves establish verified copyright and distribution rights.
-- By default, full playback through NexStream remains **gated** behind a safety verification flag (`PLAYBACK_PROVIDER_ENABLED=true` or `NEXSTREAM_ENABLED=true`).
-- When unverified (the default), the `/watch` route preserves the verified **official YouTube trailer** and **JustWatch streaming discovery** experience, while presenting a clear educational gate state in the stream player.
-- When verified, the player seamlessly embeds the 16:9 iframe stream with restrictive permissions (`sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"`, `loading="lazy"`, `referrerPolicy="origin"`).
-
-### Dual-Mode Playback Experience (`PlaybackContainer`)
-
-The `/watch` page presents an integrated player with a top segmented mode switcher:
-1. **Stream Player**: Renders `EmbedPlayer` with loading state, load-failure detection, retry action, and return-to-details links.
-2. **Official Trailer**: Retains direct YouTube trailer playback via `TrailerPlayer`.
+- Deep-links directly into any season and episode playback route.
 
 ### Environment Configuration
 
 ```env
-# NexStream / Playback Provider Configuration
+# NextStream / Playback Provider Configuration
 NEXSTREAM_BASE_URL=https://api.codespecters.com
 NEXSTREAM_API_KEY=your_nexstream_api_key
-
-# Content Licensing Safety Gate (Defaults to false/gated)
-PLAYBACK_PROVIDER_ENABLED=false
 ```
 
-> **Security Note:** Provider API keys are never printed, logged, or exposed in error messages or diagnostic traces. Base URLs and embed paths are strictly validated to prevent arbitrary URL injection.
+> **Security Note:** Provider API keys are never printed, logged, or exposed in error messages, client bundles, or frontend requests. All upstream provider calls execute exclusively on the server.
 
 ---
 

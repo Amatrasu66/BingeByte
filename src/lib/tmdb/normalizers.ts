@@ -14,10 +14,6 @@ import type {
   NormalizedSeasonDetails,
   NormalizedCredits,
   NormalizedVideo,
-  TMDBWatchProvidersResponse,
-  TMDBWatchProviderItem,
-  NormalizedWatchProviders,
-  NormalizedWatchProviderItem,
   PaginatedResult,
 } from "./types";
 
@@ -252,8 +248,6 @@ export function isValidYouTubeKey(key: string | null | undefined): boolean {
 const PERMITTED_EXTERNAL_HOSTS = new Set([
   "themoviedb.org",
   "www.themoviedb.org",
-  "justwatch.com",
-  "www.justwatch.com",
   "youtube.com",
   "www.youtube.com",
   "youtu.be",
@@ -271,7 +265,7 @@ export function isSafeExternalUrl(url: string | null | undefined): boolean {
     if (PERMITTED_EXTERNAL_HOSTS.has(hostname)) {
       return true;
     }
-    if (hostname.endsWith(".themoviedb.org") || hostname.endsWith(".justwatch.com")) {
+    if (hostname.endsWith(".themoviedb.org")) {
       return true;
     }
     return false;
@@ -342,77 +336,5 @@ export function formatCurrency(amount: number | null | undefined): string {
   }).format(amount);
 }
 
-/**
- * Normalizes TMDB watch providers for a given region (default: "IN" for India).
- * Organizes providers into stream (subscription), free/ads, rent, and buy categories.
- */
-export function normalizeWatchProviders(
-  id: number,
-  raw?: TMDBWatchProvidersResponse | null,
-  region: string = "IN"
-): NormalizedWatchProviders {
-  const normalizedRegion = (region || "IN").toUpperCase();
-  const emptyResult: NormalizedWatchProviders = {
-    id,
-    region: normalizedRegion,
-    link: null,
-    stream: [],
-    free: [],
-    rent: [],
-    buy: [],
-    hasProviders: false,
-  };
 
-  if (!raw || !raw.results || typeof raw.results !== "object") {
-    return emptyResult;
-  }
-
-  const countryData = raw.results[normalizedRegion];
-  if (!countryData) {
-    return emptyResult;
-  }
-
-  const mapItems = (items?: TMDBWatchProviderItem[]): NormalizedWatchProviderItem[] => {
-    if (!Array.isArray(items)) return [];
-    const seen = new Set<number>();
-    const result: NormalizedWatchProviderItem[] = [];
-
-    for (const item of items) {
-      if (item && item.provider_id && !seen.has(item.provider_id)) {
-        seen.add(item.provider_id);
-        result.push({
-          id: item.provider_id,
-          name: item.provider_name || "Provider",
-          logoPath: item.logo_path ?? null,
-          displayPriority: item.display_priority ?? 0,
-        });
-      }
-    }
-    return result.sort((a, b) => a.displayPriority - b.displayPriority);
-  };
-
-  const stream = mapItems(countryData.flatrate);
-  const combinedFree = [...(countryData.free || []), ...(countryData.ads || [])];
-  const free = mapItems(combinedFree);
-  const rent = mapItems(countryData.rent);
-  const buy = mapItems(countryData.buy);
-
-  const rawLink =
-    countryData.link && typeof countryData.link === "string" ? countryData.link : null;
-  const link = isSafeExternalUrl(rawLink) ? rawLink : null;
-
-  const hasProviders =
-    stream.length > 0 || free.length > 0 || rent.length > 0 || buy.length > 0;
-
-  return {
-    id,
-    region: normalizedRegion,
-    link,
-    stream,
-    free,
-    rent,
-    buy,
-    hasProviders,
-  };
-}
 

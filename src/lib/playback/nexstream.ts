@@ -2,9 +2,13 @@
  * BingeByte — NexStream Playback Provider Adapter
  * Implements the PlaybackProvider interface for NexStream by CodeSpecter.
  *
- * URL Schemes:
- * - Movie: /embed/movie/{tmdbId}?apikey={API_KEY}
- * - TV Episode: /embed/tv/{tmdbId}/{season}/{episode}?apikey={API_KEY}
+ * Server-Side API Endpoints:
+ * - Movie: GET /api/movie/{tmdbId}?apikey={API_KEY}
+ * - TV Episode: GET /api/tv/{tmdbId}/{season}/{episode}?apikey={API_KEY}
+ *
+ * Playback Security:
+ * The API key is utilized strictly on the server to retrieve the playable stream source.
+ * The client browser receives only the resolved clean playback URL (e.g. embedmaster.link).
  */
 
 import {
@@ -17,10 +21,28 @@ import {
 export interface NexStreamConfig extends PlaybackProviderConfig {
   baseUrl?: string;
   apiKey?: string;
-  isVerified?: boolean;
+  timeoutMs?: number;
 }
 
 const DEFAULT_NEXSTREAM_BASE_URL = "https://api.codespecters.com";
+const DEFAULT_TIMEOUT_MS = 8000;
+
+interface NextStreamApiResponse {
+  success?: boolean;
+  type?: string;
+  tmdbId?: string | number;
+  season?: string | number;
+  episode?: string | number;
+  meta?: {
+    title?: string;
+    poster?: string;
+  } | null;
+  sources?: Array<{
+    name?: string;
+    url?: string;
+  }>;
+  error?: string;
+}
 
 /**
  * Validates whether an input represents a positive integer (e.g. valid TMDB media ID or episode number).
@@ -65,16 +87,28 @@ export function sanitizeBaseUrl(rawUrl?: string): string | null {
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
       return null;
     }
-    // Remove trailing slashes for predictable path concatenation
     return `${parsed.protocol}//${parsed.host}`;
   } catch {
     return null;
   }
 }
 
+/**
+ * Validates that a resolved source URL is a legitimate web destination.
+ */
+export function isValidSourceUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 export class NexStreamAdapter implements PlaybackProvider {
-  public readonly id = "nexstream";
-  public readonly name = "NexStream";
+  public readonly id = "nextstream";
+  public readonly name = "NextStream";
 
   private readonly explicitConfig?: NexStreamConfig;
 
@@ -87,7 +121,10 @@ export class NexStreamAdapter implements PlaybackProvider {
    */
   private getBaseUrl(): string | null {
     const configured =
-      this.explicitConfig?.baseUrl || process.env.NEXSTREAM_BASE_URL || DEFAULT_NEXSTREAM_BASE_URL;
+      this.explicitConfig?.baseUrl ||
+      process.env.NEXSTREAM_BASE_URL ||
+      process.env.NEXTSTREAM_BASE_URL ||
+      DEFAULT_NEXSTREAM_BASE_URL;
     return sanitizeBaseUrl(configured);
   }
 
@@ -95,11 +132,22 @@ export class NexStreamAdapter implements PlaybackProvider {
    * Resolves the active API key from explicit options or environment variables.
    */
   private getApiKey(): string | null {
-    const key = this.explicitConfig?.apiKey ?? process.env.NEXSTREAM_API_KEY;
+    const key =
+      this.explicitConfig?.apiKey ??
+      process.env.NEXSTREAM_API_KEY ??
+      process.env.NEXTSTREAM_API_KEY;
+
     if (!key || typeof key !== "string" || key.trim().length === 0) {
       return null;
     }
     return key.trim();
+  }
+
+  /**
+   * Resolves the active timeout.
+   */
+  private getTimeoutMs(): number {
+    return this.explicitConfig?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   /**
@@ -110,26 +158,9 @@ export class NexStreamAdapter implements PlaybackProvider {
   }
 
   /**
-   * Checks whether the provider is verified and authorized for content embedding.
-   * By default, returns false unless explicitly gated with an affirmative verification flag.
+   * Queries the NextStream server-side API to retrieve the movie stream source.
    */
-  public isAuthorized(): boolean {
-    if (typeof this.explicitConfig?.isVerified === "boolean") {
-      return this.explicitConfig.isVerified;
-    }
-    const envFlag =
-      process.env.PLAYBACK_PROVIDER_ENABLED === "true" ||
-      process.env.ENABLE_EMBED_PLAYBACK === "true" ||
-      process.env.NEXSTREAM_ENABLED === "true";
-
-    return envFlag;
-  }
-
-  /**
-   * Constructs a validated embed URL for a movie.
-   * Format: /embed/movie/{tmdbId}?apikey={API_KEY}
-   */
-  public getMovieEmbedUrl(tmdbId: number | string): PlaybackEmbedResult {
+  public async getMovieEmbedUrl(tmdbId: number | string): Promise<PlaybackEmbedResult> {
     const target: PlaybackTarget = {
       mediaType: "movie",
       tmdbId: typeof tmdbId === "number" ? tmdbId : parseInt(String(tmdbId), 10),
@@ -140,7 +171,7 @@ export class NexStreamAdapter implements PlaybackProvider {
         status: "invalid_input",
         providerId: this.id,
         providerName: this.name,
-        reason: "Invalid movie ID. A positive integer is required.",
+        reason: "Invalid movie identifier. A positive integer is required.",
         target,
       };
     }
@@ -157,44 +188,95 @@ export class NexStreamAdapter implements PlaybackProvider {
         providerId: this.id,
         providerName: this.name,
         reason: !baseUrl
-          ? "NexStream base URL is invalid or unconfigured."
-          : "NexStream API key is not configured.",
+          ? "NextStream base URL is invalid or unconfigured."
+          : "NextStream API key is not configured in the server environment.",
         target,
       };
     }
 
-    if (!this.isAuthorized()) {
+    const requestUrl = new URL(`/api/movie/${numericId}`, baseUrl);
+    requestUrl.searchParams.set("apikey", apiKey);
+
+    try {
+      const response = await fetch(requestUrl.toString(), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "BingeByte-Server/1.0",
+        },
+        signal: AbortSignal.timeout(this.getTimeoutMs()),
+      });
+
+      if (response.status === 401) {
+        return {
+          status: "auth_error",
+          providerId: this.id,
+          providerName: this.name,
+          reason: "Streaming service authentication failed. Please verify provider settings.",
+          target,
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          status: "api_error",
+          providerId: this.id,
+          providerName: this.name,
+          reason: `Streaming provider returned status ${response.status}.`,
+          target,
+        };
+      }
+
+      const json: NextStreamApiResponse = await response.json();
+
+      if (
+        json.success &&
+        Array.isArray(json.sources) &&
+        json.sources.length > 0 &&
+        typeof json.sources[0]?.url === "string"
+      ) {
+        const sourceUrl = json.sources[0].url.trim();
+
+        if (isValidSourceUrl(sourceUrl)) {
+          return {
+            status: "ready",
+            url: sourceUrl,
+            providerId: this.id,
+            providerName: this.name,
+            target,
+          };
+        }
+      }
+
       return {
-        status: "unverified",
+        status: "unavailable",
+        providerId: this.id,
+        providerName: this.name,
+        reason: "No playable streaming source is currently available for this movie.",
+        target,
+      };
+    } catch (error) {
+      return {
+        status: "api_error",
         providerId: this.id,
         providerName: this.name,
         reason:
-          "Playback provider integration is gated pending verification of content distribution licensing rights.",
+          error instanceof Error && error.name === "TimeoutError"
+            ? "Request to streaming provider timed out."
+            : "Unable to reach streaming provider. Please check network connectivity.",
         target,
       };
     }
-
-    const embedUrl = new URL(`/embed/movie/${numericId}`, baseUrl);
-    embedUrl.searchParams.set("apikey", apiKey);
-
-    return {
-      status: "ready",
-      url: embedUrl.toString(),
-      providerId: this.id,
-      providerName: this.name,
-      target,
-    };
   }
 
   /**
-   * Constructs a validated embed URL for a TV episode.
-   * Format: /embed/tv/{tmdbId}/{season}/{episode}?apikey={API_KEY}
+   * Queries the NextStream server-side API to retrieve the TV episode stream source.
    */
-  public getTVEmbedUrl(
+  public async getTVEmbedUrl(
     tmdbId: number | string,
     season: number | string,
     episode: number | string
-  ): PlaybackEmbedResult {
+  ): Promise<PlaybackEmbedResult> {
     const target: PlaybackTarget = {
       mediaType: "tv",
       tmdbId: typeof tmdbId === "number" ? tmdbId : parseInt(String(tmdbId), 10),
@@ -207,7 +289,7 @@ export class NexStreamAdapter implements PlaybackProvider {
         status: "invalid_input",
         providerId: this.id,
         providerName: this.name,
-        reason: "Invalid TV series ID. A positive integer is required.",
+        reason: "Invalid TV series identifier. A positive integer is required.",
         target,
       };
     }
@@ -249,42 +331,94 @@ export class NexStreamAdapter implements PlaybackProvider {
         providerId: this.id,
         providerName: this.name,
         reason: !baseUrl
-          ? "NexStream base URL is invalid or unconfigured."
-          : "NexStream API key is not configured.",
+          ? "NextStream base URL is invalid or unconfigured."
+          : "NextStream API key is not configured in the server environment.",
         target,
       };
     }
 
-    if (!this.isAuthorized()) {
+    const requestUrl = new URL(
+      `/api/tv/${numericId}/${numericSeason}/${numericEpisode}`,
+      baseUrl
+    );
+    requestUrl.searchParams.set("apikey", apiKey);
+
+    try {
+      const response = await fetch(requestUrl.toString(), {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "BingeByte-Server/1.0",
+        },
+        signal: AbortSignal.timeout(this.getTimeoutMs()),
+      });
+
+      if (response.status === 401) {
+        return {
+          status: "auth_error",
+          providerId: this.id,
+          providerName: this.name,
+          reason: "Streaming service authentication failed. Please verify provider settings.",
+          target,
+        };
+      }
+
+      if (!response.ok) {
+        return {
+          status: "api_error",
+          providerId: this.id,
+          providerName: this.name,
+          reason: `Streaming provider returned status ${response.status}.`,
+          target,
+        };
+      }
+
+      const json: NextStreamApiResponse = await response.json();
+
+      if (
+        json.success &&
+        Array.isArray(json.sources) &&
+        json.sources.length > 0 &&
+        typeof json.sources[0]?.url === "string"
+      ) {
+        const sourceUrl = json.sources[0].url.trim();
+
+        if (isValidSourceUrl(sourceUrl)) {
+          return {
+            status: "ready",
+            url: sourceUrl,
+            providerId: this.id,
+            providerName: this.name,
+            target,
+          };
+        }
+      }
+
       return {
-        status: "unverified",
+        status: "unavailable",
+        providerId: this.id,
+        providerName: this.name,
+        reason: "No playable streaming source is currently available for this episode.",
+        target,
+      };
+    } catch (error) {
+      return {
+        status: "api_error",
         providerId: this.id,
         providerName: this.name,
         reason:
-          "Playback provider integration is gated pending verification of content distribution licensing rights.",
+          error instanceof Error && error.name === "TimeoutError"
+            ? "Request to streaming provider timed out."
+            : "Unable to reach streaming provider. Please check network connectivity.",
         target,
       };
     }
-
-    const embedUrl = new URL(
-      `/embed/tv/${numericId}/${numericSeason}/${numericEpisode}`,
-      baseUrl
-    );
-    embedUrl.searchParams.set("apikey", apiKey);
-
-    return {
-      status: "ready",
-      url: embedUrl.toString(),
-      providerId: this.id,
-      providerName: this.name,
-      target,
-    };
   }
 
   /**
    * Resolves playback target for a generic target object.
    */
-  public resolvePlayback(target: PlaybackTarget): PlaybackEmbedResult {
+  public async resolvePlayback(target: PlaybackTarget): Promise<PlaybackEmbedResult> {
     if (target.mediaType === "movie") {
       return this.getMovieEmbedUrl(target.tmdbId);
     }

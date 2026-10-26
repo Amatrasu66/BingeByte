@@ -20,18 +20,20 @@ export interface TVPlaybackTarget {
 export type PlaybackTarget = MoviePlaybackTarget | TVPlaybackTarget;
 
 /**
- * Status of playback availability:
- * - 'ready': Configuration and licensing verified; embed URL is validated and ready.
- * - 'unverified': Provider configured, but content distribution licensing verification is pending (safety gate).
- * - 'unconfigured': Base URL or API key is missing from environment.
- * - 'disabled': Provider is explicitly disabled via configuration.
- * - 'invalid_input': Malformed or invalid media ID / season / episode.
+ * Genuine status of playback availability:
+ * - 'ready': Provider returned a valid, playable stream source.
+ * - 'unavailable': Provider returned no playable source for this title / episode.
+ * - 'unconfigured': Base URL or API key is missing from server environment.
+ * - 'auth_error': Provider rejected authentication (e.g. invalid API key).
+ * - 'api_error': Provider endpoint unreachable, timed out, or returned an error status.
+ * - 'invalid_input': Malformed or non-positive media ID / season / episode.
  */
 export type PlaybackStatus =
   | "ready"
-  | "unverified"
+  | "unavailable"
   | "unconfigured"
-  | "disabled"
+  | "auth_error"
+  | "api_error"
   | "invalid_input";
 
 export interface PlaybackEmbedSuccess {
@@ -55,7 +57,7 @@ export type PlaybackEmbedResult = PlaybackEmbedSuccess | PlaybackEmbedUnavailabl
 export interface PlaybackProviderConfig {
   baseUrl?: string;
   apiKey?: string;
-  isVerified?: boolean;
+  timeoutMs?: number;
 }
 
 /**
@@ -71,27 +73,21 @@ export interface PlaybackProvider {
   isConfigured(): boolean;
 
   /**
-   * Checks whether the provider has passed licensing and authorization verification.
-   * If false, embed playback must remain gated.
+   * Resolves a validated embed URL for a movie via server-side provider query.
    */
-  isAuthorized(): boolean;
+  getMovieEmbedUrl(tmdbId: number | string): Promise<PlaybackEmbedResult>;
 
   /**
-   * Constructs a validated embed URL for a movie.
-   */
-  getMovieEmbedUrl(tmdbId: number | string): PlaybackEmbedResult;
-
-  /**
-   * Constructs a validated embed URL for a TV episode.
+   * Resolves a validated embed URL for a TV episode via server-side provider query.
    */
   getTVEmbedUrl(
     tmdbId: number | string,
     season: number | string,
     episode: number | string
-  ): PlaybackEmbedResult;
+  ): Promise<PlaybackEmbedResult>;
 
   /**
    * Resolves playback for a generic PlaybackTarget (movie or TV episode).
    */
-  resolvePlayback(target: PlaybackTarget): PlaybackEmbedResult;
+  resolvePlayback(target: PlaybackTarget): Promise<PlaybackEmbedResult>;
 }

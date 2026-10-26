@@ -267,7 +267,7 @@ export function SeasonSelector({
                           href={`/watch?type=tv&id=${tvId}&season=${selectedSeasonNumber}&episode=${ep.episodeNumber}`}
                           className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--color-text-primary)] hover:underline focus-ring rounded"
                         >
-                          <span>Watch Episode Guide</span>
+                          <span>Watch Episode</span>
                           <svg
                             className="h-3 w-3"
                             fill="none"

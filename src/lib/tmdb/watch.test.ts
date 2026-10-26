@@ -5,17 +5,11 @@ import {
   isSafeExternalUrl,
   isValidYouTubeKey,
   selectPrimaryTrailer,
-  normalizeWatchProviders,
-  getMovieWatchProviders,
-  getTVWatchProviders,
   tmdbFetch,
   TMDBNotFoundError,
   TMDBAuthError,
 } from "./index";
-import type {
-  TMDBWatchProvidersResponse,
-  NormalizedVideo,
-} from "./types";
+import type { NormalizedVideo } from "./types";
 
 describe("Phase 7 Watch Parameters, Trailers & Providers", () => {
   const originalEnv = process.env;
@@ -127,15 +121,11 @@ describe("Phase 7 Watch Parameters, Trailers & Providers", () => {
   describe("Safe External URL Allowlist (isSafeExternalUrl)", () => {
     it("should allow verified official partner domains", () => {
       assert.strictEqual(
-        isSafeExternalUrl("https://www.themoviedb.org/movie/550-fight-club/watch?locale=IN"),
+        isSafeExternalUrl("https://www.themoviedb.org/movie/550-fight-club/watch"),
         true
       );
       assert.strictEqual(
         isSafeExternalUrl("https://themoviedb.org/tv/1399/watch"),
-        true
-      );
-      assert.strictEqual(
-        isSafeExternalUrl("https://www.justwatch.com/in/movie/fight-club"),
         true
       );
       assert.strictEqual(
@@ -149,6 +139,7 @@ describe("Phase 7 Watch Parameters, Trailers & Providers", () => {
     });
 
     it("should reject dangerous, unpermitted, or non-whitelisted destinations", () => {
+      assert.strictEqual(isSafeExternalUrl("https://www.justwatch.com/in/movie/fight-club"), false);
       assert.strictEqual(isSafeExternalUrl("javascript:alert(1)"), false);
       assert.strictEqual(isSafeExternalUrl("data:text/html,test"), false);
       assert.strictEqual(isSafeExternalUrl("http://malicious-stream-site.com/movie/550"), false);
@@ -202,163 +193,7 @@ describe("Phase 7 Watch Parameters, Trailers & Providers", () => {
     });
   });
 
-  describe("Watch Providers Normalization & Regional Extraction", () => {
-    const mockProvidersResponse: TMDBWatchProvidersResponse = {
-      id: 550,
-      results: {
-        IN: {
-          link: "https://www.themoviedb.org/movie/550-fight-club/watch?locale=IN",
-          flatrate: [
-            {
-              logo_path: "/amazon.jpg",
-              provider_id: 119,
-              provider_name: "Amazon Prime Video",
-              display_priority: 1,
-            },
-          ],
-          rent: [
-            {
-              logo_path: "/apple.jpg",
-              provider_id: 2,
-              provider_name: "Apple TV",
-              display_priority: 3,
-            },
-          ],
-          buy: [
-            {
-              logo_path: "/google.jpg",
-              provider_id: 3,
-              provider_name: "Google Play Movies",
-              display_priority: 8,
-            },
-          ],
-          free: [
-            {
-              logo_path: "/mx.jpg",
-              provider_id: 500,
-              provider_name: "MX Player",
-              display_priority: 2,
-            },
-          ],
-        },
-        US: {
-          link: "https://www.themoviedb.org/movie/550-fight-club/watch?locale=US",
-          flatrate: [
-            {
-              logo_path: "/hulu.jpg",
-              provider_id: 15,
-              provider_name: "Hulu",
-              display_priority: 1,
-            },
-          ],
-        },
-      },
-    };
 
-    it("should extract India (IN) watch providers accurately", () => {
-      const normalized = normalizeWatchProviders(550, mockProvidersResponse, "IN");
-
-      assert.strictEqual(normalized.id, 550);
-      assert.strictEqual(normalized.region, "IN");
-      assert.strictEqual(normalized.hasProviders, true);
-      assert.strictEqual(normalized.stream.length, 1);
-      assert.strictEqual(normalized.stream[0].name, "Amazon Prime Video");
-      assert.strictEqual(normalized.rent.length, 1);
-      assert.strictEqual(normalized.rent[0].name, "Apple TV");
-      assert.strictEqual(normalized.buy.length, 1);
-      assert.strictEqual(normalized.buy[0].name, "Google Play Movies");
-      assert.strictEqual(normalized.free.length, 1);
-      assert.strictEqual(normalized.free[0].name, "MX Player");
-      assert.ok(normalized.link?.includes("locale=IN"));
-    });
-
-    it("should handle missing regional data gracefully", () => {
-      const normalized = normalizeWatchProviders(550, mockProvidersResponse, "JP");
-
-      assert.strictEqual(normalized.id, 550);
-      assert.strictEqual(normalized.region, "JP");
-      assert.strictEqual(normalized.hasProviders, false);
-      assert.strictEqual(normalized.stream.length, 0);
-      assert.strictEqual(normalized.rent.length, 0);
-      assert.strictEqual(normalized.buy.length, 0);
-      assert.strictEqual(normalized.link, null);
-    });
-
-    it("should handle null or malformed provider responses safely", () => {
-      const normalized = normalizeWatchProviders(550, null, "IN");
-      assert.strictEqual(normalized.hasProviders, false);
-      assert.strictEqual(normalized.stream.length, 0);
-      assert.strictEqual(normalized.link, null);
-    });
-  });
-
-  describe("Watch Provider Services (getMovieWatchProviders & getTVWatchProviders)", () => {
-    it("should query /movie/{id}/watch/providers and normalize for India", async () => {
-      let capturedUrl = "";
-
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
-        capturedUrl = input.toString();
-        return new Response(
-          JSON.stringify({
-            id: 550,
-            results: {
-              IN: {
-                link: "https://www.themoviedb.org/movie/550/watch?locale=IN",
-                flatrate: [
-                  {
-                    logo_path: "/prime.jpg",
-                    provider_id: 119,
-                    provider_name: "Prime Video",
-                    display_priority: 1,
-                  },
-                ],
-              },
-            },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      }) as typeof fetch;
-
-      const providers = await getMovieWatchProviders(550, "IN");
-
-      assert.match(capturedUrl, /\/movie\/550\/watch\/providers/);
-      assert.strictEqual(providers.hasProviders, true);
-      assert.strictEqual(providers.stream[0].name, "Prime Video");
-    });
-
-    it("should query /tv/{id}/watch/providers for TV series", async () => {
-      let capturedUrl = "";
-
-      globalThis.fetch = (async (input: RequestInfo | URL) => {
-        capturedUrl = input.toString();
-        return new Response(
-          JSON.stringify({
-            id: 1399,
-            results: {
-              IN: {
-                link: "https://www.themoviedb.org/tv/1399/watch?locale=IN",
-                flatrate: [
-                  {
-                    logo_path: "/jiocinema.jpg",
-                    provider_id: 220,
-                    provider_name: "JioCinema",
-                    display_priority: 1,
-                  },
-                ],
-              },
-            },
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        );
-      }) as typeof fetch;
-
-      const providers = await getTVWatchProviders(1399, "IN");
-
-      assert.match(capturedUrl, /\/tv\/1399\/watch\/providers/);
-      assert.strictEqual(providers.hasProviders, true);
-      assert.strictEqual(providers.stream[0].name, "JioCinema");
-    });
-  });
 
   describe("Reliability & Transient Network Error Recovery", () => {
     it("should retry once on transient socket failure and succeed on second attempt", async () => {

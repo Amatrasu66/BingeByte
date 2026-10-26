@@ -1,6 +1,6 @@
 import * as React from "react";
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { MainContainer } from "@/components/layout/main-container";
 import { ConfigNotice } from "@/components/home/config-notice";
@@ -11,17 +11,14 @@ import {
   MediaMetadataGrid,
   RecommendationsSection,
 } from "@/components/media-detail";
-import { WatchProvidersSection } from "@/components/watch";
 import {
   getDetailedMovie,
   getMovieDetails,
-  getMovieWatchProviders,
   getBackdropUrl,
   getPosterUrl,
   TMDBNotFoundError,
   TMDBConfigError,
 } from "@/lib/tmdb";
-import type { NormalizedWatchProviders } from "@/lib/tmdb/types";
 
 export interface MoviePageProps {
   params: Promise<{ id: string }>;
@@ -42,24 +39,16 @@ export async function generateMetadata({
 
   try {
     const movie = await getMovieDetails(numericId);
-    const releaseYear = movie.releaseDate
-      ? ` (${movie.releaseDate.split("-")[0]})`
-      : "";
-    const title = `${movie.title}${releaseYear} — Movie Details | BingeByte`;
-    const description =
-      movie.overview ||
-      `Explore synopsis, cast, crew, trailers, and recommendations for ${movie.title}.`;
-    const backdropUrl = getBackdropUrl(movie.backdropPath, "w1280");
-    const posterUrl = getPosterUrl(movie.posterPath, "w500");
+    const poster = getPosterUrl(movie.posterPath, "w500");
+    const backdrop = getBackdropUrl(movie.backdropPath, "w1280");
 
     return {
-      title,
-      description,
+      title: `${movie.title} | BingeByte`,
+      description: movie.overview || `Discover ${movie.title} on BingeByte.`,
       openGraph: {
-        title,
-        description,
-        type: "video.movie",
-        images: backdropUrl ? [backdropUrl] : posterUrl ? [posterUrl] : [],
+        title: `${movie.title} | BingeByte`,
+        description: movie.overview || undefined,
+        images: backdrop ? [backdrop] : poster ? [poster] : [],
       },
     };
   } catch {
@@ -79,21 +68,10 @@ export default async function MovieDetailPage({ params }: MoviePageProps) {
   }
 
   let data = null;
-  let providers: NormalizedWatchProviders | null = null;
   let isConfigError = false;
 
   try {
-    const [detailRes, providersRes] = await Promise.allSettled([
-      getDetailedMovie(numericId),
-      getMovieWatchProviders(numericId, "IN"),
-    ]);
-
-    if (detailRes.status === "rejected") {
-      throw detailRes.reason;
-    }
-
-    data = detailRes.value;
-    providers = providersRes.status === "fulfilled" ? providersRes.value : null;
+    data = await getDetailedMovie(numericId);
   } catch (error) {
     if (error instanceof TMDBNotFoundError) {
       notFound();
@@ -128,14 +106,6 @@ export default async function MovieDetailPage({ params }: MoviePageProps) {
         )}
 
         <MediaMetadataGrid media={data.details} credits={data.credits} />
-
-        {providers && (
-          <WatchProvidersSection
-            providers={providers}
-            mediaType="movie"
-            mediaId={numericId}
-          />
-        )}
 
         {(data.recommendations.length > 0 || data.similar.length > 0) && (
           <RecommendationsSection

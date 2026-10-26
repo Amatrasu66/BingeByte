@@ -28,7 +28,6 @@ export {
   getBackdropUrl,
   getProfileUrl,
   getStillUrl,
-  getLogoUrl,
 } from "./images";
 
 export {
@@ -44,7 +43,6 @@ export {
   selectPrimaryTrailer,
   isValidYouTubeKey,
   isSafeExternalUrl,
-  normalizeWatchProviders,
   formatRuntime,
   formatCurrency,
 } from "./normalizers";

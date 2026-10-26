@@ -257,7 +257,7 @@ export function MediaDetailHero({
                   </Button>
                 )}
 
-                {/* Where to Watch & Streaming Providers Action */}
+                {/* Watch Stream Action */}
                 <Link
                   href={
                     isMovie
@@ -269,19 +269,18 @@ export function MediaDetailHero({
                     variant="secondary"
                     size="md"
                     className="gap-2"
-                    aria-label={`Where to watch ${media.title}`}
+                    aria-label={isMovie ? `Watch ${media.title}` : `Watch ${media.title} series`}
                   >
                     <svg
-                      className="h-4 w-4 text-[var(--color-text-secondary)]"
+                      className="h-4 w-4 text-[var(--color-text-primary)]"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                       aria-hidden="true"
                     >
-                      <circle cx="12" cy="12" r="10" />
-                      <polygon points="10 8 16 12 10 16 10 8" />
+                      <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" />
                     </svg>
-                    <span>Where to Watch</span>
+                    <span>{isMovie ? "Watch Movie" : "Watch Series"}</span>
                   </Button>
                 </Link>
               </div>

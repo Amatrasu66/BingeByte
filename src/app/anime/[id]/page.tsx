@@ -1,6 +1,6 @@
 import * as React from "react";
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { MainContainer } from "@/components/layout/main-container";
 import { ConfigNotice } from "@/components/home/config-notice";
@@ -12,18 +12,15 @@ import {
   MediaMetadataGrid,
   RecommendationsSection,
 } from "@/components/media-detail";
-import { WatchProvidersSection } from "@/components/watch";
 import {
   getDetailedTV,
   getTVDetails,
   getTVSeasonDetails,
-  getTVWatchProviders,
   getBackdropUrl,
   getPosterUrl,
   TMDBNotFoundError,
   TMDBConfigError,
 } from "@/lib/tmdb";
-import type { NormalizedWatchProviders } from "@/lib/tmdb/types";
 
 export interface AnimeDetailPageProps {
   params: Promise<{ id: string }>;
@@ -44,29 +41,21 @@ export async function generateMetadata({
 
   try {
     const show = await getTVDetails(numericId);
-    const firstYear = show.releaseDate
-      ? ` (${show.releaseDate.split("-")[0]})`
-      : "";
-    const title = `${show.title}${firstYear} — Anime Series Details | BingeByte`;
-    const description =
-      show.overview ||
-      `Explore episodes, seasons, characters, voice cast, and recommendations for ${show.title}.`;
-    const backdropUrl = getBackdropUrl(show.backdropPath, "w1280");
-    const posterUrl = getPosterUrl(show.posterPath, "w500");
+    const poster = getPosterUrl(show.posterPath, "w500");
+    const backdrop = getBackdropUrl(show.backdropPath, "w1280");
 
     return {
-      title,
-      description,
+      title: `${show.title} (Anime) | BingeByte`,
+      description: show.overview || `Discover ${show.title} episodes and details on BingeByte.`,
       openGraph: {
-        title,
-        description,
-        type: "video.tv_show",
-        images: backdropUrl ? [backdropUrl] : posterUrl ? [posterUrl] : [],
+        title: `${show.title} | BingeByte`,
+        description: show.overview || undefined,
+        images: backdrop ? [backdrop] : poster ? [poster] : [],
       },
     };
   } catch {
     return {
-      title: "Anime Details | BingeByte",
+      title: "Anime Series Details | BingeByte",
       description: "Explore cinematic anime series details and episodes on BingeByte.",
     };
   }
@@ -82,21 +71,10 @@ export default async function AnimeDetailPage({ params }: AnimeDetailPageProps) 
 
   let data = null;
   let initialSeasonData = null;
-  let providers: NormalizedWatchProviders | null = null;
   let isConfigError = false;
 
   try {
-    const [detailRes, providersRes] = await Promise.allSettled([
-      getDetailedTV(numericId),
-      getTVWatchProviders(numericId, "IN"),
-    ]);
-
-    if (detailRes.status === "rejected") {
-      throw detailRes.reason;
-    }
-
-    data = detailRes.value;
-    providers = providersRes.status === "fulfilled" ? providersRes.value : null;
+    data = await getDetailedTV(numericId);
 
     // Prefetch initial season details server-side for zero-delay episode display
     if (data.details.seasons && data.details.seasons.length > 0) {
@@ -153,14 +131,6 @@ export default async function AnimeDetailPage({ params }: AnimeDetailPageProps) 
         )}
 
         <MediaMetadataGrid media={data.details} credits={data.credits} />
-
-        {providers && (
-          <WatchProvidersSection
-            providers={providers}
-            mediaType="tv"
-            mediaId={numericId}
-          />
-        )}
 
         {(data.recommendations.length > 0 || data.similar.length > 0) && (
           <RecommendationsSection

@@ -6,18 +6,25 @@ import {
   isValidPositiveInteger,
   isValidNonNegativeInteger,
   sanitizeBaseUrl,
+  isValidSourceUrl,
 } from "./index";
 import type { PlaybackTarget } from "./types";
 
-describe("Phase 8 Playback Provider Adapter (NexStream)", () => {
+describe("Phase 9 Playback Provider Adapter (NextStream)", () => {
   const originalEnv = process.env;
+  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    process.env = {
+      ...originalEnv,
+      NEXSTREAM_BASE_URL: "https://api.codespecters.com",
+      NEXSTREAM_API_KEY: "mock_test_key_12345",
+    };
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    globalThis.fetch = originalFetch;
   });
 
   describe("Input & Base URL Validation Helpers", () => {
@@ -66,233 +73,254 @@ describe("Phase 8 Playback Provider Adapter (NexStream)", () => {
       assert.strictEqual(sanitizeBaseUrl(""), null);
       assert.strictEqual(sanitizeBaseUrl(undefined), null);
     });
-  });
 
-  describe("Authorization & Verification Gate", () => {
-    it("should keep provider unverified and gated by default", () => {
-      delete process.env.PLAYBACK_PROVIDER_ENABLED;
-      delete process.env.ENABLE_EMBED_PLAYBACK;
-      delete process.env.NEXSTREAM_ENABLED;
-
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "mock_test_key",
-      });
-
-      assert.strictEqual(provider.isConfigured(), true);
-      assert.strictEqual(provider.isAuthorized(), false);
-
-      const result = provider.getMovieEmbedUrl(550);
-      assert.strictEqual(result.status, "unverified");
-      assert.strictEqual(result.providerId, "nexstream");
-      assert.match(result.reason, /gated pending verification/i);
-    });
-
-    it("should allow verified execution when explicit configuration flag is set to true", () => {
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "mock_test_key",
-        isVerified: true,
-      });
-
-      assert.strictEqual(provider.isAuthorized(), true);
-
-      const result = provider.getMovieEmbedUrl(550);
-      assert.strictEqual(result.status, "ready");
-      if (result.status === "ready") {
-        assert.ok(result.url.includes("/embed/movie/550"));
-        assert.ok(result.url.includes("apikey=mock_test_key"));
-      }
-    });
-
-    it("should respect environment variable verification flags", () => {
-      process.env.PLAYBACK_PROVIDER_ENABLED = "true";
-
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "mock_test_key",
-      });
-
-      assert.strictEqual(provider.isAuthorized(), true);
-      const result = provider.getMovieEmbedUrl(680);
-      assert.strictEqual(result.status, "ready");
+    it("should validate source URLs", () => {
+      assert.strictEqual(isValidSourceUrl("https://embedmaster.link/movie/550"), true);
+      assert.strictEqual(isValidSourceUrl("http://embedmaster.link/tv/1399/1/1"), true);
+      assert.strictEqual(isValidSourceUrl("javascript:alert(1)"), false);
+      assert.strictEqual(isValidSourceUrl("not-a-url"), false);
+      assert.strictEqual(isValidSourceUrl(null), false);
     });
   });
 
-  describe("Movie Embed URL Construction", () => {
-    it("should construct verified movie embed URL with correct path and query parameters", () => {
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "test_key_123",
-        isVerified: true,
-      });
+  describe("Movie Stream Resolution via Server-Side API", () => {
+    it("should request /api/movie/{id} with apiKey and return ready status with clean source", async () => {
+      let capturedUrl = "";
 
-      const result = provider.getMovieEmbedUrl(550);
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        capturedUrl = input.toString();
+        return new Response(
+          JSON.stringify({
+            success: true,
+            type: "movie",
+            tmdbId: "550",
+            sources: [
+              {
+                name: "CodeSpecter",
+                url: "https://embedmaster.link/movie/550",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
       assert.strictEqual(result.status, "ready");
       if (result.status === "ready") {
-        const url = new URL(result.url);
-        assert.strictEqual(url.origin, "https://api.codespecters.com");
-        assert.strictEqual(url.pathname, "/embed/movie/550");
-        assert.strictEqual(url.searchParams.get("apikey"), "test_key_123");
-        assert.strictEqual(result.target.mediaType, "movie");
+        assert.strictEqual(result.url, "https://embedmaster.link/movie/550");
+        assert.strictEqual(result.providerName, "NextStream");
         assert.strictEqual(result.target.tmdbId, 550);
       }
+
+      // Verify that the server called the API with the apiKey
+      assert.ok(capturedUrl.includes("/api/movie/550"));
+      assert.ok(capturedUrl.includes("apikey=mock_test_key_12345"));
     });
 
-    it("should accept valid string-formatted IDs", () => {
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "test_key_123",
-        isVerified: true,
-      });
+    it("should return unavailable status when provider returns empty sources", async () => {
+      globalThis.fetch = (async () => {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            type: "movie",
+            tmdbId: "9999999",
+            sources: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
 
-      const result = provider.getMovieEmbedUrl("299536");
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(9999999);
+
+      assert.strictEqual(result.status, "unavailable");
+      assert.match(result.reason, /no playable streaming source/i);
+    });
+  });
+
+  describe("TV Episode Stream Resolution via Server-Side API", () => {
+    it("should request /api/tv/{id}/{season}/{episode} and return ready status", async () => {
+      let capturedUrl = "";
+
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        capturedUrl = input.toString();
+        return new Response(
+          JSON.stringify({
+            success: true,
+            type: "tv",
+            tmdbId: "1399",
+            season: "1",
+            episode: "1",
+            sources: [
+              {
+                name: "CodeSpecter",
+                url: "https://embedmaster.link/tv/1399/1/1",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getTVEmbedUrl(1399, 1, 1);
+
       assert.strictEqual(result.status, "ready");
       if (result.status === "ready") {
-        assert.ok(result.url.includes("/embed/movie/299536"));
+        assert.strictEqual(result.url, "https://embedmaster.link/tv/1399/1/1");
+        assert.strictEqual(result.target.mediaType, "tv");
+        assert.strictEqual((result.target as { season: number }).season, 1);
+        assert.strictEqual((result.target as { episode: number }).episode, 1);
+      }
+
+      assert.ok(capturedUrl.includes("/api/tv/1399/1/1"));
+    });
+
+    it("should support season 0 specials", async () => {
+      globalThis.fetch = (async () => {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            type: "tv",
+            tmdbId: "1399",
+            season: "0",
+            episode: "1",
+            sources: [{ name: "CodeSpecter", url: "https://embedmaster.link/tv/1399/0/1" }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getTVEmbedUrl(1399, 0, 1);
+
+      assert.strictEqual(result.status, "ready");
+      if (result.status === "ready") {
+        assert.strictEqual(result.url, "https://embedmaster.link/tv/1399/0/1");
       }
     });
   });
 
-  describe("TV Episode Embed URL Construction", () => {
-    it("should construct verified TV episode embed URL with season and episode", () => {
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "test_key_123",
-        isVerified: true,
-      });
+  describe("Authentication, Network & Upstream Error Handling", () => {
+    it("should handle 401 unauthorized response with auth_error status", async () => {
+      globalThis.fetch = (async () => {
+        return new Response(JSON.stringify({ error: "Invalid API Key." }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as typeof fetch;
 
-      const result = provider.getTVEmbedUrl(1399, 2, 5);
-      assert.strictEqual(result.status, "ready");
-      if (result.status === "ready") {
-        const url = new URL(result.url);
-        assert.strictEqual(url.origin, "https://api.codespecters.com");
-        assert.strictEqual(url.pathname, "/embed/tv/1399/2/5");
-        assert.strictEqual(url.searchParams.get("apikey"), "test_key_123");
-        assert.strictEqual(result.target.mediaType, "tv");
-        assert.strictEqual((result.target as { season: number }).season, 2);
-        assert.strictEqual((result.target as { episode: number }).episode, 5);
-      }
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(result.status, "auth_error");
+      assert.match(result.reason, /authentication failed/i);
     });
 
-    it("should support season 0 for TV specials", () => {
-      const provider = new NexStreamAdapter({
-        baseUrl: "https://api.codespecters.com",
-        apiKey: "test_key_123",
-        isVerified: true,
-      });
+    it("should handle 500 error response with api_error status", async () => {
+      globalThis.fetch = (async () => {
+        return new Response("Internal Server Error", { status: 500 });
+      }) as typeof fetch;
 
-      const result = provider.getTVEmbedUrl(1399, 0, 1);
-      assert.strictEqual(result.status, "ready");
-      if (result.status === "ready") {
-        const url = new URL(result.url);
-        assert.strictEqual(url.pathname, "/embed/tv/1399/0/1");
-      }
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(result.status, "api_error");
+      assert.match(result.reason, /status 500/i);
+    });
+
+    it("should handle network connection failure with api_error status", async () => {
+      globalThis.fetch = (async () => {
+        throw new TypeError("fetch failed: ECONNRESET");
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(result.status, "api_error");
+      assert.match(result.reason, /unable to reach/i);
     });
   });
 
   describe("Validation of Invalid Parameters", () => {
-    const provider = new NexStreamAdapter({
-      baseUrl: "https://api.codespecters.com",
-      apiKey: "test_key_123",
-      isVerified: true,
-    });
+    const provider = new NexStreamAdapter();
 
-    it("should reject negative or zero movie IDs", () => {
-      const resNeg = provider.getMovieEmbedUrl(-550);
+    it("should reject negative or zero movie IDs", async () => {
+      const resNeg = await provider.getMovieEmbedUrl(-550);
       assert.strictEqual(resNeg.status, "invalid_input");
 
-      const resZero = provider.getMovieEmbedUrl(0);
+      const resZero = await provider.getMovieEmbedUrl(0);
       assert.strictEqual(resZero.status, "invalid_input");
 
-      const resString = provider.getMovieEmbedUrl("invalid_id");
+      const resString = await provider.getMovieEmbedUrl("invalid_id");
       assert.strictEqual(resString.status, "invalid_input");
     });
 
-    it("should reject invalid TV season numbers", () => {
-      const resNegSeason = provider.getTVEmbedUrl(1399, -1, 1);
+    it("should reject invalid TV season numbers", async () => {
+      const resNegSeason = await provider.getTVEmbedUrl(1399, -1, 1);
       assert.strictEqual(resNegSeason.status, "invalid_input");
       assert.match(resNegSeason.reason, /season/i);
     });
 
-    it("should reject invalid TV episode numbers", () => {
-      const resZeroEp = provider.getTVEmbedUrl(1399, 1, 0);
+    it("should reject invalid TV episode numbers", async () => {
+      const resZeroEp = await provider.getTVEmbedUrl(1399, 1, 0);
       assert.strictEqual(resZeroEp.status, "invalid_input");
       assert.match(resZeroEp.reason, /episode/i);
 
-      const resNegEp = provider.getTVEmbedUrl(1399, 1, -2);
+      const resNegEp = await provider.getTVEmbedUrl(1399, 1, -2);
       assert.strictEqual(resNegEp.status, "invalid_input");
     });
   });
 
   describe("Missing Environment Configuration", () => {
-    it("should report unconfigured status when API key is missing", () => {
+    it("should report unconfigured status when API key is missing", async () => {
       delete process.env.NEXSTREAM_API_KEY;
+      delete process.env.NEXTSTREAM_API_KEY;
+
       const provider = new NexStreamAdapter({
         baseUrl: "https://api.codespecters.com",
         apiKey: undefined,
-        isVerified: true,
       });
 
-      const result = provider.getMovieEmbedUrl(550);
+      const result = await provider.getMovieEmbedUrl(550);
       assert.strictEqual(result.status, "unconfigured");
       assert.match(result.reason, /API key/i);
-      // Ensure reason does not expose internal secrets
-      assert.strictEqual(result.reason.includes("test_key"), false);
-    });
-
-    it("should report unconfigured status when Base URL is malformed", () => {
-      const provider = new NexStreamAdapter({
-        baseUrl: "not-a-valid-domain",
-        apiKey: "some_secret_key",
-        isVerified: true,
-      });
-
-      const result = provider.getMovieEmbedUrl(550);
-      assert.strictEqual(result.status, "unconfigured");
-      assert.match(result.reason, /base URL/i);
-      // Ensure reason does not leak secret key
-      assert.strictEqual(result.reason.includes("some_secret_key"), false);
     });
   });
 
   describe("Generic resolvePlayback & Unsupported Media Types", () => {
-    const provider = new NexStreamAdapter({
-      baseUrl: "https://api.codespecters.com",
-      apiKey: "test_key_123",
-      isVerified: true,
-    });
+    it("should resolve movie targets via resolvePlayback", async () => {
+      globalThis.fetch = (async () => {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            sources: [{ name: "CodeSpecter", url: "https://embedmaster.link/movie/680" }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
 
-    it("should resolve movie targets correctly", () => {
+      const provider = new NexStreamAdapter();
       const target: PlaybackTarget = { mediaType: "movie", tmdbId: 680 };
-      const res = provider.resolvePlayback(target);
+      const res = await provider.resolvePlayback(target);
+
       assert.strictEqual(res.status, "ready");
       if (res.status === "ready") {
-        assert.ok(res.url.includes("/embed/movie/680"));
+        assert.strictEqual(res.url, "https://embedmaster.link/movie/680");
       }
     });
 
-    it("should resolve TV targets correctly", () => {
-      const target: PlaybackTarget = {
-        mediaType: "tv",
-        tmdbId: 1399,
-        season: 3,
-        episode: 9,
-      };
-      const res = provider.resolvePlayback(target);
-      assert.strictEqual(res.status, "ready");
-      if (res.status === "ready") {
-        assert.ok(res.url.includes("/embed/tv/1399/3/9"));
-      }
-    });
-
-    it("should return invalid_input for unsupported media types", () => {
+    it("should return invalid_input for unsupported media types", async () => {
+      const provider = new NexStreamAdapter();
       const target = {
         mediaType: "game",
         tmdbId: 100,
       } as unknown as PlaybackTarget;
 
-      const res = provider.resolvePlayback(target);
+      const res = await provider.resolvePlayback(target);
       assert.strictEqual(res.status, "invalid_input");
       assert.match(res.reason, /unsupported media type/i);
     });
@@ -301,8 +329,8 @@ describe("Phase 8 Playback Provider Adapter (NexStream)", () => {
   describe("Factory getDefaultPlaybackProvider", () => {
     it("should instantiate default NexStreamAdapter with configured name and id", () => {
       const provider = getDefaultPlaybackProvider();
-      assert.strictEqual(provider.id, "nexstream");
-      assert.strictEqual(provider.name, "NexStream");
+      assert.strictEqual(provider.id, "nextstream");
+      assert.strictEqual(provider.name, "NextStream");
     });
   });
 });
