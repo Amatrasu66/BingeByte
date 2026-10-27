@@ -29,11 +29,31 @@ export function EmbedPlayer({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [retryCount, setRetryCount] = useState<number>(0);
+  const [selectedSourceIndex, setSelectedSourceIndex] = useState<number>(0);
+
+  const availableSources = React.useMemo(() => {
+    if (result.status === "ready" && Array.isArray(result.sources) && result.sources.length > 0) {
+      return result.sources;
+    }
+    if (result.status === "ready" && result.url) {
+      return [{ name: "Server 1", url: result.url }];
+    }
+    return [];
+  }, [result]);
+
+  const activeSource = availableSources[selectedSourceIndex] || availableSources[0];
+  const activeStreamUrl = activeSource?.url || (result.status === "ready" ? result.url : "");
 
   const handleRetry = useCallback(() => {
     setIsLoading(true);
     setHasError(false);
     setRetryCount((prev) => prev + 1);
+  }, []);
+
+  const handleSourceSelect = useCallback((index: number) => {
+    setSelectedSourceIndex(index);
+    setIsLoading(true);
+    setHasError(false);
   }, []);
 
   const detailsUrl = mediaType === "movie" ? `/movie/${mediaId}` : `/tv/${mediaId}`;
@@ -42,7 +62,7 @@ export function EmbedPlayer({
   if (result.status === "ready") {
     return (
       <section aria-labelledby="stream-player-heading" className="w-full">
-        <div className="flex items-center justify-between pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" />
             <h2
@@ -58,12 +78,47 @@ export function EmbedPlayer({
             </h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Server selection interface when multiple sources exist */}
+            {availableSources.length > 1 && (
+              <div
+                role="group"
+                aria-label="Select streaming server"
+                className="flex items-center gap-1 bg-[var(--color-surface)] border border-[var(--color-border-subtle)] rounded-md p-0.5"
+              >
+                <span className="px-1.5 text-[10px] uppercase tracking-wider font-medium text-[var(--color-text-secondary)]">
+                  Server:
+                </span>
+                {availableSources.map((source, idx) => {
+                  const isSelected = idx === selectedSourceIndex;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSourceSelect(idx);
+                      }}
+                      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors focus-ring cursor-pointer ${
+                        isSelected
+                          ? "bg-[var(--color-text-primary)] text-[var(--color-background)] font-semibold shadow-xs"
+                          : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-elevated)]"
+                      }`}
+                      aria-pressed={isSelected}
+                    >
+                      {source.name || `Server ${idx + 1}`}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {hasTrailer && onSwitchToTrailer && (
               <button
                 type="button"
                 onClick={onSwitchToTrailer}
-                className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-ring rounded py-1 px-2"
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-ring rounded py-1 px-2 border border-[var(--color-border-subtle)] bg-[var(--color-surface)]"
                 aria-label="Switch to official YouTube trailer preview"
               >
                 <svg
@@ -80,7 +135,7 @@ export function EmbedPlayer({
 
             <Link
               href={detailsUrl}
-              className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-ring rounded py-1 px-1.5"
+              className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-ring rounded py-1 px-2 border border-[var(--color-border-subtle)] bg-[var(--color-surface)]"
             >
               Back to Details
             </Link>
@@ -122,23 +177,36 @@ export function EmbedPlayer({
                 Unable to Load Stream Player
               </h3>
               <p className="mt-1 max-w-sm text-xs text-[var(--color-text-secondary)]">
-                The stream embed could not be loaded or timed out. Please try reloading the player.
+                The stream embed could not be loaded or timed out. Please try reloading the player or choosing an alternate server.
               </p>
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={handleRetry}
-                  className="rounded bg-[var(--color-surface)] hover:bg-[var(--color-surface)]/80 border border-[var(--color-border-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors focus-ring"
+                  className="rounded bg-[var(--color-surface)] hover:bg-[var(--color-surface-elevated)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors focus-ring cursor-pointer"
                 >
                   Retry Player
                 </button>
+
+                {availableSources.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextIndex = (selectedSourceIndex + 1) % availableSources.length;
+                      handleSourceSelect(nextIndex);
+                    }}
+                    className="rounded bg-[var(--color-surface)] hover:bg-[var(--color-surface-elevated)] border border-[var(--color-border-subtle)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-primary)] transition-colors focus-ring cursor-pointer"
+                  >
+                    Try Alternate Server
+                  </button>
+                )}
 
                 {hasTrailer && onSwitchToTrailer && (
                   <button
                     type="button"
                     onClick={onSwitchToTrailer}
-                    className="rounded bg-red-600/80 hover:bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors focus-ring"
+                    className="rounded bg-red-600/80 hover:bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-colors focus-ring cursor-pointer"
                   >
                     Watch Trailer Instead
                   </button>
@@ -154,8 +222,8 @@ export function EmbedPlayer({
             </div>
           ) : (
             <iframe
-              key={`player-${result.target.tmdbId}-${retryCount}`}
-              src={result.url}
+              key={`player-${result.target.tmdbId}-${selectedSourceIndex}-${retryCount}`}
+              src={activeStreamUrl}
               title={`${title} - Video Player`}
               allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
               allowFullScreen

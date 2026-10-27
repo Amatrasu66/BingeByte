@@ -91,6 +91,8 @@ function isTransientNetworkError(error: unknown): boolean {
   const msg = error.message.toLowerCase();
   const cause = (error as { cause?: Error }).cause;
   const causeMsg = cause?.message?.toLowerCase() || "";
+  const code = (error as { code?: string }).code?.toLowerCase() || "";
+  const causeCode = (cause as { code?: string })?.code?.toLowerCase() || "";
 
   return (
     msg.includes("econnreset") ||
@@ -100,7 +102,11 @@ function isTransientNetworkError(error: unknown): boolean {
     msg.includes("fetch failed") ||
     causeMsg.includes("econnreset") ||
     causeMsg.includes("etimedout") ||
-    causeMsg.includes("socket hang up")
+    causeMsg.includes("socket hang up") ||
+    code === "econnreset" ||
+    causeCode === "econnreset" ||
+    code === "und_err_socket" ||
+    causeCode === "und_err_socket"
   );
 }
 
@@ -159,7 +165,7 @@ export async function tmdbFetch<T>(
   }
 
   const timeoutMs = options.timeoutMs ?? TMDB_CONFIG.DEFAULT_TIMEOUT_MS;
-  const maxRetries = options.retries ?? 1;
+  const maxRetries = options.retries ?? 2;
   let attempt = 0;
 
   while (true) {
@@ -234,7 +240,7 @@ export async function tmdbFetch<T>(
         throw new TMDBTimeoutError(cleanEndpoint, timeoutMs);
       }
       if (attempt <= maxRetries && isTransientNetworkError(error)) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, attempt * 300));
         continue;
       }
       throw error;

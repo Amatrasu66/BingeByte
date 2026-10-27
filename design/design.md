@@ -77,17 +77,16 @@ not Jest (the JavaScript testing framework).
 
 ## 3. Color System
 
-The two approved brand colors are:
+The approved monochrome palette is:
 
   -----------------------------------------------------------------------
   Token                   Value                   Purpose
   ----------------------- ----------------------- -----------------------
-  `--color-background`    `#151319`               Main page/canvas
-                                                  background
+  `--color-background`    `#0A0A0A`               Main page/canvas background
+                                                  (near-black)
 
-  `--color-surface`       `#1B1820`               Elevated surfaces,
-                                                  navigation surfaces,
-                                                  and panels
+  `--color-surface`       `#141414`               Elevated panels, cards,
+                                                  navigation surfaces (charcoal)
   -----------------------------------------------------------------------
 
 These colors are the foundation of the visual identity and should remain
@@ -101,15 +100,15 @@ structure. They do not introduce a branded accent hue.
   --------------------------------------------------------------------------
   Token                      Value                   Purpose
   -------------------------- ----------------------- -----------------------
-  `--color-text-primary`     `#F5F3F7`               Main text and wordmark
+  `--color-text-primary`     `#EDEDED`               Main text and wordmark
 
-  `--color-text-secondary`   `#AAA5B2`               Supporting copy and
+  `--color-text-secondary`   `#A1A1A1`               Supporting copy and
                                                      metadata
 
-  `--color-border-subtle`    `#302B36`               Quiet dividers and
+  `--color-border-subtle`    `#262626`               Quiet dividers and
                                                      boundaries
 
-  `--color-surface-deep`     `#100F13`               Deeper overlays or
+  `--color-surface-deep`     `#050505`               Deeper overlays or
                                                      layered surfaces
 
   `--color-white`            `#FFFFFF`               High-contrast text or

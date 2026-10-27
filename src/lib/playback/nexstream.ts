@@ -16,6 +16,7 @@ import {
   PlaybackEmbedResult,
   PlaybackTarget,
   PlaybackProviderConfig,
+  PlaybackSource,
 } from "./types";
 
 export interface NexStreamConfig extends PlaybackProviderConfig {
@@ -135,6 +136,36 @@ export function isValidSourceUrl(
   }
 }
 
+/**
+ * Determines whether a playback request error is transient and safe to retry.
+ */
+function isTransientPlaybackNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === "AbortError" || error.name === "TimeoutError") {
+    return false;
+  }
+  const msg = error.message.toLowerCase();
+  const cause = (error as { cause?: Error }).cause;
+  const causeMsg = cause?.message?.toLowerCase() || "";
+  const code = (error as { code?: string }).code?.toLowerCase() || "";
+  const causeCode = (cause as { code?: string })?.code?.toLowerCase() || "";
+
+  return (
+    msg.includes("econnreset") ||
+    msg.includes("etimedout") ||
+    msg.includes("econnrefused") ||
+    msg.includes("socket hang up") ||
+    msg.includes("fetch failed") ||
+    causeMsg.includes("econnreset") ||
+    causeMsg.includes("etimedout") ||
+    causeMsg.includes("socket hang up") ||
+    code === "econnreset" ||
+    causeCode === "econnreset" ||
+    code === "und_err_socket" ||
+    causeCode === "und_err_socket"
+  );
+}
+
 export class NexStreamAdapter implements PlaybackProvider {
   public readonly id = "nextstream";
   public readonly name = "NextStream";
@@ -200,6 +231,47 @@ export class NexStreamAdapter implements PlaybackProvider {
   }
 
   /**
+   * Executes a request to the NextStream API with bounded retries for transient network socket resets.
+   */
+  private async executeProviderRequest(requestPath: string): Promise<{
+    response?: Response;
+    error?: unknown;
+  }> {
+    const baseUrl = this.getBaseUrl();
+    const apiKey = this.getApiKey();
+    if (!baseUrl || !apiKey) {
+      return { error: new Error("Unconfigured") };
+    }
+
+    const requestUrl = new URL(requestPath, baseUrl);
+    requestUrl.searchParams.set("apikey", apiKey);
+
+    const maxRetries = 2;
+    let attempt = 0;
+
+    while (true) {
+      attempt++;
+      try {
+        const response = await fetch(requestUrl.toString(), {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "BingeByte-Server/1.0",
+          },
+          signal: AbortSignal.timeout(this.getTimeoutMs()),
+        });
+        return { response };
+      } catch (error) {
+        if (attempt <= maxRetries && isTransientPlaybackNetworkError(error)) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 250));
+          continue;
+        }
+        return { error };
+      }
+    }
+  }
+
+  /**
    * Queries the NextStream server-side API to retrieve the movie stream source.
    */
   public async getMovieEmbedUrl(tmdbId: number | string): Promise<PlaybackEmbedResult> {
@@ -236,68 +308,9 @@ export class NexStreamAdapter implements PlaybackProvider {
       };
     }
 
-    const requestUrl = new URL(`/api/movie/${numericId}`, baseUrl);
-    requestUrl.searchParams.set("apikey", apiKey);
+    const { response, error } = await this.executeProviderRequest(`/api/movie/${numericId}`);
 
-    try {
-      const response = await fetch(requestUrl.toString(), {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "BingeByte-Server/1.0",
-        },
-        signal: AbortSignal.timeout(this.getTimeoutMs()),
-      });
-
-      if (response.status === 401) {
-        return {
-          status: "auth_error",
-          providerId: this.id,
-          providerName: this.name,
-          reason: "Streaming service authentication failed. Please verify provider settings.",
-          target,
-        };
-      }
-
-      if (!response.ok) {
-        return {
-          status: "api_error",
-          providerId: this.id,
-          providerName: this.name,
-          reason: `Streaming provider returned status ${response.status}.`,
-          target,
-        };
-      }
-
-      const json: NextStreamApiResponse = await response.json();
-
-      if (
-        json.success &&
-        Array.isArray(json.sources) &&
-        json.sources.length > 0 &&
-        typeof json.sources[0]?.url === "string"
-      ) {
-        const sourceUrl = json.sources[0].url.trim();
-        const baseHost = baseUrl ? new URL(baseUrl).hostname : undefined;
-        if (isValidSourceUrl(sourceUrl, baseHost)) {
-          return {
-            status: "ready",
-            url: sourceUrl,
-            providerId: this.id,
-            providerName: this.name,
-            target,
-          };
-        }
-      }
-
-      return {
-        status: "unavailable",
-        providerId: this.id,
-        providerName: this.name,
-        reason: "No playable streaming source is currently available for this movie.",
-        target,
-      };
-    } catch (error) {
+    if (error || !response) {
       const isTimeout =
         error instanceof Error &&
         (error.name === "TimeoutError" || error.name === "AbortError");
@@ -315,6 +328,79 @@ export class NexStreamAdapter implements PlaybackProvider {
         target,
       };
     }
+
+    if (response.status === 401) {
+      return {
+        status: "auth_error",
+        providerId: this.id,
+        providerName: this.name,
+        reason: "Streaming service authentication failed. Please verify provider settings.",
+        target,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        status: "api_error",
+        providerId: this.id,
+        providerName: this.name,
+        reason: `Streaming provider returned status ${response.status}.`,
+        target,
+      };
+    }
+
+    let json: NextStreamApiResponse;
+    try {
+      json = await response.json();
+    } catch {
+      return {
+        status: "api_error",
+        providerId: this.id,
+        providerName: this.name,
+        reason: "Streaming provider returned a malformed response.",
+        target,
+      };
+    }
+
+    if (
+      json.success &&
+      Array.isArray(json.sources) &&
+      json.sources.length > 0
+    ) {
+      const baseHost = baseUrl ? new URL(baseUrl).hostname : undefined;
+      const validSources: PlaybackSource[] = [];
+
+      for (const s of json.sources) {
+        if (s && typeof s.url === "string") {
+          const trimmed = s.url.trim();
+          if (isValidSourceUrl(trimmed, baseHost)) {
+            validSources.push({
+              name: s.name?.trim() || `Server ${validSources.length + 1}`,
+              url: trimmed,
+            });
+          }
+        }
+      }
+
+      if (validSources.length > 0) {
+        return {
+          status: "ready",
+          url: validSources[0].url,
+          sources: validSources,
+          providerId: this.id,
+          providerName: this.name,
+          target,
+        };
+      }
+    }
+
+    return {
+      status: "unavailable",
+      providerId: this.id,
+      providerName: this.name,
+      reason: "No playable streaming source is currently available for this movie.",
+      target,
+    };
   }
 
   /**
@@ -385,72 +471,11 @@ export class NexStreamAdapter implements PlaybackProvider {
       };
     }
 
-    const requestUrl = new URL(
-      `/api/tv/${numericId}/${numericSeason}/${numericEpisode}`,
-      baseUrl
+    const { response, error } = await this.executeProviderRequest(
+      `/api/tv/${numericId}/${numericSeason}/${numericEpisode}`
     );
-    requestUrl.searchParams.set("apikey", apiKey);
 
-    try {
-      const response = await fetch(requestUrl.toString(), {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "BingeByte-Server/1.0",
-        },
-        signal: AbortSignal.timeout(this.getTimeoutMs()),
-      });
-
-      if (response.status === 401) {
-        return {
-          status: "auth_error",
-          providerId: this.id,
-          providerName: this.name,
-          reason: "Streaming service authentication failed. Please verify provider settings.",
-          target,
-        };
-      }
-
-      if (!response.ok) {
-        return {
-          status: "api_error",
-          providerId: this.id,
-          providerName: this.name,
-          reason: `Streaming provider returned status ${response.status}.`,
-          target,
-        };
-      }
-
-      const json: NextStreamApiResponse = await response.json();
-
-      if (
-        json.success &&
-        Array.isArray(json.sources) &&
-        json.sources.length > 0 &&
-        typeof json.sources[0]?.url === "string"
-      ) {
-        const sourceUrl = json.sources[0].url.trim();
-        const baseHost = baseUrl ? new URL(baseUrl).hostname : undefined;
-
-        if (isValidSourceUrl(sourceUrl, baseHost)) {
-          return {
-            status: "ready",
-            url: sourceUrl,
-            providerId: this.id,
-            providerName: this.name,
-            target,
-          };
-        }
-      }
-
-      return {
-        status: "unavailable",
-        providerId: this.id,
-        providerName: this.name,
-        reason: "No playable streaming source is currently available for this episode.",
-        target,
-      };
-    } catch (error) {
+    if (error || !response) {
       const isTimeout =
         error instanceof Error &&
         (error.name === "TimeoutError" || error.name === "AbortError");
@@ -468,6 +493,79 @@ export class NexStreamAdapter implements PlaybackProvider {
         target,
       };
     }
+
+    if (response.status === 401) {
+      return {
+        status: "auth_error",
+        providerId: this.id,
+        providerName: this.name,
+        reason: "Streaming service authentication failed. Please verify provider settings.",
+        target,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        status: "api_error",
+        providerId: this.id,
+        providerName: this.name,
+        reason: `Streaming provider returned status ${response.status}.`,
+        target,
+      };
+    }
+
+    let json: NextStreamApiResponse;
+    try {
+      json = await response.json();
+    } catch {
+      return {
+        status: "api_error",
+        providerId: this.id,
+        providerName: this.name,
+        reason: "Streaming provider returned a malformed response.",
+        target,
+      };
+    }
+
+    if (
+      json.success &&
+      Array.isArray(json.sources) &&
+      json.sources.length > 0
+    ) {
+      const baseHost = baseUrl ? new URL(baseUrl).hostname : undefined;
+      const validSources: PlaybackSource[] = [];
+
+      for (const s of json.sources) {
+        if (s && typeof s.url === "string") {
+          const trimmed = s.url.trim();
+          if (isValidSourceUrl(trimmed, baseHost)) {
+            validSources.push({
+              name: s.name?.trim() || `Server ${validSources.length + 1}`,
+              url: trimmed,
+            });
+          }
+        }
+      }
+
+      if (validSources.length > 0) {
+        return {
+          status: "ready",
+          url: validSources[0].url,
+          sources: validSources,
+          providerId: this.id,
+          providerName: this.name,
+          target,
+        };
+      }
+    }
+
+    return {
+      status: "unavailable",
+      providerId: this.id,
+      providerName: this.name,
+      reason: "No playable streaming source is currently available for this episode.",
+      target,
+    };
   }
 
   /**

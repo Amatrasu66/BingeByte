@@ -125,11 +125,72 @@ describe("Phase 9 Playback Provider Adapter (NextStream)", () => {
         assert.strictEqual(result.url, "https://embedmaster.link/movie/550");
         assert.strictEqual(result.providerName, "NextStream");
         assert.strictEqual(result.target.tmdbId, 550);
+        assert.ok(Array.isArray(result.sources));
+        assert.strictEqual(result.sources?.length, 1);
+        assert.strictEqual(result.sources?.[0].name, "CodeSpecter");
       }
 
       // Verify that the server called the API with the apiKey
       assert.ok(capturedUrl.includes("/api/movie/550"));
       assert.ok(capturedUrl.includes("apikey=mock_test_key_12345"));
+    });
+
+    it("should return ready status with multiple streaming sources when provided", async () => {
+      globalThis.fetch = (async () => {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            type: "movie",
+            tmdbId: "550",
+            sources: [
+              { name: "Server Fast", url: "https://embedmaster.link/movie/550" },
+              { name: "Server Backup", url: "https://embdmstrplayer.com/movie/550" },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(result.status, "ready");
+      if (result.status === "ready") {
+        assert.strictEqual(result.url, "https://embedmaster.link/movie/550");
+        assert.strictEqual(result.sources?.length, 2);
+        assert.strictEqual(result.sources?.[0].name, "Server Fast");
+        assert.strictEqual(result.sources?.[1].name, "Server Backup");
+      }
+    });
+
+    it("should retry transient connection reset and recover on subsequent attempt", async () => {
+      let callCount = 0;
+      globalThis.fetch = (async () => {
+        callCount++;
+        if (callCount === 1) {
+          const resetErr = new TypeError("fetch failed");
+          (resetErr as { cause?: Error }).cause = new Error("read ECONNRESET");
+          throw resetErr;
+        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            type: "movie",
+            tmdbId: "550",
+            sources: [{ name: "CodeSpecter", url: "https://embedmaster.link/movie/550" }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as typeof fetch;
+
+      const provider = new NexStreamAdapter();
+      const result = await provider.getMovieEmbedUrl(550);
+
+      assert.strictEqual(callCount, 2);
+      assert.strictEqual(result.status, "ready");
+      if (result.status === "ready") {
+        assert.strictEqual(result.url, "https://embedmaster.link/movie/550");
+      }
     });
 
     it("should return unavailable status when provider returns empty sources", async () => {

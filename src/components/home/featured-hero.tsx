@@ -118,14 +118,26 @@ export function FeaturedHero({ media }: FeaturedHeroProps) {
 
         {/* Action Controls */}
         <div className="mt-6 sm:mt-8 flex flex-wrap items-center gap-3.5">
-          <Link href="#trending">
+          <Link
+            href={
+              media.mediaType === "movie"
+                ? `/watch?type=movie&id=${media.id}`
+                : `/watch?type=tv&id=${media.id}&season=1&episode=1`
+            }
+          >
             <Button variant="primary" size="md">
-              Explore Trending
+              Watch Now
             </Button>
           </Link>
-          <Link href="#movies">
+          <Link
+            href={
+              media.mediaType === "movie"
+                ? `/movie/${media.id}`
+                : `/tv/${media.id}`
+            }
+          >
             <Button variant="secondary" size="md">
-              Browse Movies
+              View Details
             </Button>
           </Link>
         </div>

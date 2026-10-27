@@ -152,6 +152,8 @@ async function WatchContent({ searchParams }: WatchPageProps) {
             title={movie.title}
             mediaType="movie"
             mediaId={id}
+            posterPath={movie.posterPath}
+            backdropPath={movie.backdropPath}
           />
 
           <TMDBAttribution />
@@ -241,6 +243,9 @@ async function WatchContent({ searchParams }: WatchPageProps) {
           mediaId={id}
           season={season}
           episode={episode}
+          posterPath={show.posterPath}
+          backdropPath={show.backdropPath}
+          episodeTitle={currentEpisode?.name}
         />
 
         {show.seasons && show.seasons.length > 0 && (

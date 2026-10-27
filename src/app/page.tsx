@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { MainContainer } from "@/components/layout/main-container";
 import { FeaturedHero } from "@/components/home/featured-hero";
+import { ContinueWatching } from "@/components/home/continue-watching";
 import { MediaSection } from "@/components/home/media-section";
 import { TMDBAttribution } from "@/components/home/tmdb-attribution";
 import { ConfigNotice } from "@/components/home/config-notice";
@@ -71,6 +72,9 @@ async function HomeContent() {
 
       {/* Featured Hero Section */}
       <FeaturedHero media={heroMedia} />
+
+      {/* Continue Watching Section (Client-side localStorage) */}
+      <ContinueWatching />
 
       {/* Section A: Trending Now */}
       <MediaSection

@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { MainContainer } from "@/components/layout/main-container";
@@ -72,6 +73,7 @@ export default async function TVDetailPage({ params }: TVDetailPageProps) {
   let data = null;
   let initialSeasonData = null;
   let isConfigError = false;
+  let serviceError: string | null = null;
 
   try {
     data = await getDetailedTV(numericId);
@@ -95,15 +97,58 @@ export default async function TVDetailPage({ params }: TVDetailPageProps) {
     if (error instanceof TMDBConfigError) {
       isConfigError = true;
     } else {
-      throw error;
+      serviceError =
+        "Unable to retrieve television series details at this time. The entertainment catalog provider may be temporarily unavailable.";
     }
   }
 
-  if (isConfigError || !data) {
+  if (isConfigError) {
     return (
       <AppShell>
         <MainContainer className="py-12">
           <ConfigNotice />
+        </MainContainer>
+      </AppShell>
+    );
+  }
+
+  if (serviceError || !data) {
+    return (
+      <AppShell>
+        <MainContainer className="py-16 text-center space-y-4">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-surface)] border border-[var(--color-border-subtle)] text-[var(--color-text-secondary)]">
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-semibold text-[var(--color-text-primary)]">
+            TV Series Temporarily Unavailable
+          </h1>
+          <p className="max-w-md mx-auto text-sm text-[var(--color-text-secondary)] leading-relaxed">
+            {serviceError || "We could not load this series at this time. Please try again shortly."}
+          </p>
+          <div className="pt-2 flex justify-center gap-3">
+            <Link
+              href="/tv"
+              className="inline-flex items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-2 text-xs font-medium text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] focus-ring transition-colors"
+            >
+              Return to TV Shows
+            </Link>
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 py-2 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] focus-ring transition-colors"
+            >
+              Go to Home
+            </Link>
+          </div>
         </MainContainer>
       </AppShell>
     );

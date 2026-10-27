@@ -15,7 +15,6 @@ export const navigationItems: NavItem[] = [
   { label: "Movies", href: "/movies" },
   { label: "TV Shows", href: "/tv" },
   { label: "Anime", href: "/anime" },
-  { label: "Search", href: "/search" },
 ];
 
 export interface PrimaryNavigationProps {

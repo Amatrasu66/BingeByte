@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { PlaybackEmbedResult } from "@/lib/playback";
 import type { NormalizedVideo } from "@/lib/tmdb/types";
+import { saveWatchProgress } from "@/lib/storage/continue-watching";
 import { EmbedPlayer } from "./embed-player";
 import { TrailerPlayer } from "./trailer-player";
 
@@ -16,6 +17,9 @@ export interface PlaybackContainerProps {
   season?: number;
   episode?: number;
   initialMode?: "stream" | "trailer";
+  posterPath?: string | null;
+  backdropPath?: string | null;
+  episodeTitle?: string;
 }
 
 export function PlaybackContainer({
@@ -27,9 +31,28 @@ export function PlaybackContainer({
   season,
   episode,
   initialMode = "stream",
+  posterPath = null,
+  backdropPath = null,
+  episodeTitle,
 }: PlaybackContainerProps) {
   const [activeMode, setActiveMode] = useState<"stream" | "trailer">(initialMode);
   const hasTrailer = Boolean(trailer);
+
+  // Automatically record watch progress when stream is ready
+  useEffect(() => {
+    if (playbackResult.status === "ready") {
+      saveWatchProgress({
+        mediaType,
+        tmdbId: mediaId,
+        title,
+        posterPath,
+        backdropPath,
+        seasonNumber: season,
+        episodeNumber: episode,
+        episodeTitle,
+      });
+    }
+  }, [playbackResult.status, mediaType, mediaId, title, posterPath, backdropPath, season, episode, episodeTitle]);
 
   return (
     <div className="w-full space-y-4">

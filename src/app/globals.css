@@ -2,22 +2,22 @@
 
 :root {
   /* ==========================================================================
-     BingeByte Brand Foundation Tokens (from design/design.md)
+     BingeByte Monochrome Brand Foundation Tokens (Phase 10 Design System)
      ========================================================================== */
-  --color-background: #151319;        /* Main page canvas background */
-  --color-surface: #1B1820;           /* Elevated panels, cards, nav surfaces */
-  --color-surface-elevated: #221E29;  /* Popovers, menus, elevated modals */
-  --color-surface-deep: #100F13;      /* Darker recessed overlays and footers */
-  --color-text-primary: #F5F3F7;      /* Primary copy, headings, and wordmark */
-  --color-text-secondary: #AAA5B2;    /* Secondary copy, captions, and metadata */
-  --color-text-muted: #7A7482;        /* Subdued labels, timestamps, and hints */
-  --color-border-subtle: #302B36;     /* Quiet dividers, card boundaries */
-  --color-border-hover: #484152;      /* Interactive border hover state */
-  --color-white: #FFFFFF;             /* High-contrast accents and active state */
+  --color-background: #0A0A0A;        /* Main page canvas background (near-black) */
+  --color-surface: #141414;           /* Elevated panels, cards, nav surfaces (neutral charcoal) */
+  --color-surface-elevated: #1E1E1E;  /* Popovers, menus, elevated modals */
+  --color-surface-deep: #050505;      /* Darker recessed overlays, player, and footers */
+  --color-text-primary: #EDEDED;      /* Primary copy, headings, and wordmark (white) */
+  --color-text-secondary: #A1A1A1;    /* Secondary copy, captions, and metadata (neutral gray) */
+  --color-text-muted: #737373;        /* Subdued labels, timestamps, and hints */
+  --color-border-subtle: #262626;     /* Quiet dividers, card boundaries (subtle neutral gray) */
+  --color-border-hover: #404040;      /* Interactive border hover state */
+  --color-white: #FFFFFF;             /* High-contrast pure white accents and active state */
 
   /* Focus & Accessibility */
-  --color-focus-ring: #F5F3F7;
-  --color-focus-offset: #151319;
+  --color-focus-ring: #FFFFFF;
+  --color-focus-offset: #0A0A0A;
 
   /* Layout & Geometry */
   --radius-xs: 2px;

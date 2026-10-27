@@ -46,6 +46,10 @@ export function MediaSection({
             const posterUrl = getPosterUrl(item.posterPath, "w500");
             const rating = item.voteAverage > 0 ? item.voteAverage.toFixed(1) : undefined;
             const cardMediaType = mediaTypeOverride || item.mediaType;
+            const cardHref =
+              cardMediaType === "anime"
+                ? `/anime/${item.id}`
+                : `/${cardMediaType}/${item.id}`;
 
             return (
               <MediaCard
@@ -56,6 +60,7 @@ export function MediaSection({
                 year={releaseYear}
                 mediaType={cardMediaType}
                 rating={rating}
+                href={cardHref}
               />
             );
           })}

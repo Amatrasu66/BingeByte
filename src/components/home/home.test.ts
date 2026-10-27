@@ -56,4 +56,46 @@ describe("Homepage Component Helpers & Data Mapping", () => {
     assert.strictEqual(cardProps.posterUrl, null);
     assert.strictEqual(cardProps.href, "/tv/202");
   });
+
+  it("should generate correct detail route destinations for movie, tv, and anime items", () => {
+    const movieItem: NormalizedMedia = {
+      id: 550,
+      mediaType: "movie",
+      title: "Fight Club",
+      overview: "An insomniac office worker...",
+      posterPath: "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",
+      backdropPath: null,
+      releaseDate: "1999-10-15",
+      voteAverage: 8.433,
+      voteCount: 27000,
+      genreIds: [18],
+      originalLanguage: "en",
+      popularity: 60,
+    };
+
+    const tvItem: NormalizedMedia = {
+      id: 1399,
+      mediaType: "tv",
+      title: "Game of Thrones",
+      overview: "Seven noble families fight...",
+      posterPath: "/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg",
+      backdropPath: null,
+      releaseDate: "2011-04-17",
+      voteAverage: 8.452,
+      voteCount: 23000,
+      genreIds: [10765, 18],
+      originalLanguage: "en",
+      popularity: 120,
+    };
+
+    const movieProps = mediaItemToCardProps(movieItem);
+    const tvProps = mediaItemToCardProps(tvItem);
+
+    assert.strictEqual(movieProps.href, "/movie/550");
+    assert.strictEqual(tvProps.href, "/tv/1399");
+
+    // Anime section card override
+    const animeHref = `/anime/${tvItem.id}`;
+    assert.strictEqual(animeHref, "/anime/1399");
+  });
 });

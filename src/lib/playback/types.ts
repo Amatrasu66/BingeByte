@@ -36,9 +36,15 @@ export type PlaybackStatus =
   | "api_error"
   | "invalid_input";
 
+export interface PlaybackSource {
+  name: string;
+  url: string;
+}
+
 export interface PlaybackEmbedSuccess {
   status: "ready";
   url: string;
+  sources?: PlaybackSource[];
   providerId: string;
   providerName: string;
   target: PlaybackTarget;

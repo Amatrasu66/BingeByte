@@ -26,6 +26,7 @@ const mediaTypeLabels: Record<NonNullable<MediaCardProps["mediaType"]>, string> 
 };
 
 export function MediaCard({
+  id,
   title,
   posterUrl,
   year,
@@ -36,6 +37,13 @@ export function MediaCard({
   onClick,
   className,
 }: MediaCardProps) {
+  const resolvedHref =
+    href ??
+    (id !== undefined && id !== null && mediaType
+      ? mediaType === "anime"
+        ? `/anime/${id}`
+        : `/${mediaType}/${id}`
+      : undefined);
   const cardContent = (
     <article className="group relative flex flex-col text-left focus-ring rounded-md">
       {/* 2:3 Poster Frame */}
@@ -115,10 +123,10 @@ export function MediaCard({
     </article>
   );
 
-  if (href) {
+  if (resolvedHref) {
     return (
       <Link
-        href={href}
+        href={resolvedHref}
         className={cn("block focus-ring rounded-md", className)}
         aria-label={`${title}${year ? ` (${year})` : ""}`}
       >
