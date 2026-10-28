@@ -47,6 +47,8 @@ export function PlaybackContainer({
   const [activeMode, setActiveMode] = useState<"stream" | "trailer">(initialMode);
   const [selectedProviderResult, setSelectedProviderResult] = useState<PlaybackEmbedResult | null>(null);
   const [prevPlaybackResult, setPrevPlaybackResult] = useState<PlaybackEmbedResult>(playbackResult);
+  const [providersList, setProvidersList] = useState<PlaybackProviderDescriptor[]>(availableProviders);
+  const [prevAvailableProviders, setPrevAvailableProviders] = useState<PlaybackProviderDescriptor[]>(availableProviders);
   const [isResolvingProvider, setIsResolvingProvider] = useState<boolean>(false);
   const coordinatorRef = useRef<PlaybackResolutionCoordinator>(new PlaybackResolutionCoordinator());
 
@@ -55,6 +57,12 @@ export function PlaybackContainer({
     setPrevPlaybackResult(playbackResult);
     setSelectedProviderResult(null);
     setIsResolvingProvider(false);
+  }
+
+  // Synchronize available providers if parent server prop updates
+  if (availableProviders !== prevAvailableProviders) {
+    setPrevAvailableProviders(availableProviders);
+    setProvidersList(availableProviders);
   }
 
   const currentResult = selectedProviderResult ?? playbackResult;
@@ -120,6 +128,9 @@ export function PlaybackContainer({
 
         if (data && data.result) {
           setSelectedProviderResult(data.result);
+          if (Array.isArray(data.availableProviders) && data.availableProviders.length > 0) {
+            setProvidersList(data.availableProviders);
+          }
           // Seamlessly update URL without a disruptive page reload
           if (typeof window !== "undefined") {
             const nextUrl = new URL(window.location.href);
@@ -249,7 +260,7 @@ export function PlaybackContainer({
           episode={episode}
           hasTrailer={hasTrailer}
           onSwitchToTrailer={() => setActiveMode("trailer")}
-          availableProviders={availableProviders}
+          availableProviders={providersList}
           onSelectProvider={handleSelectProvider}
           isResolvingProvider={isResolvingProvider}
         />

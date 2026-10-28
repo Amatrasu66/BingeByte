@@ -2,22 +2,22 @@
 
 :root {
   /* ==========================================================================
-     BingeByte Brand Foundation Tokens (Cinematic Charcoal Palette)
+     BingeByte Vercel Monochrome Foundation Tokens
      ========================================================================== */
-  --color-background: #151319;        /* Main page canvas background */
-  --color-surface: #1B1820;           /* Elevated panels, cards, nav surfaces */
-  --color-surface-elevated: #221E29;  /* Popovers, menus, elevated modals */
-  --color-surface-deep: #100F13;      /* Deep surfaces, recessed overlays, player */
-  --color-text-primary: #F5F3F7;      /* Primary copy, headings, and wordmark */
-  --color-text-secondary: #AAA5B2;    /* Secondary copy, captions, and metadata */
-  --color-text-muted: #7E7985;        /* Subdued labels, timestamps, and hints */
-  --color-border-subtle: #302B36;     /* Quiet dividers, card boundaries */
-  --color-border-hover: #4A4353;      /* Interactive border hover state */
+  --color-background: #000000;        /* Vercel pure black canvas */
+  --color-surface: #111111;           /* Elevated panels, cards, nav surfaces */
+  --color-surface-elevated: #171717;  /* Popovers, menus, elevated dropdowns */
+  --color-surface-deep: #080808;      /* Deep surfaces, recessed overlays, player */
+  --color-text-primary: #EDEDED;      /* Primary copy, headings, and wordmark */
+  --color-text-secondary: #A1A1A1;    /* Secondary copy, captions, and metadata */
+  --color-text-muted: #666666;        /* Subdued labels, timestamps, and hints */
+  --color-border-subtle: #222222;     /* Quiet dividers, card boundaries */
+  --color-border-hover: #383838;      /* Interactive border hover state */
   --color-white: #FFFFFF;             /* High-contrast pure white accents and active state */
 
   /* Focus & Accessibility */
   --color-focus-ring: #FFFFFF;
-  --color-focus-offset: #151319;
+  --color-focus-offset: #000000;
 
   /* Layout & Geometry */
   --radius-xs: 2px;

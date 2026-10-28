@@ -3,10 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
-import { navigationItems } from "./primary-navigation";
+import { Menu, X, Film, Tv, Sparkles, Compass } from "lucide-react";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
+
+export const mobileNavigationItems = [
+  { label: "Home", href: "/", icon: null },
+  { label: "Movies", href: "/movies", icon: Film },
+  { label: "TV Shows", href: "/tv", icon: Tv },
+  { label: "Anime", href: "/anime", icon: Sparkles },
+  { label: "Search Catalog", href: "/search", icon: Compass },
+];
 
 export interface MobileNavigationProps {
   className?: string;
@@ -16,7 +23,6 @@ export function MobileNavigation({ className }: MobileNavigationProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const pathname = usePathname();
   const navRef = React.useRef<HTMLDivElement>(null);
-
 
   // Handle escape key
   React.useEffect(() => {
@@ -48,28 +54,31 @@ export function MobileNavigation({ className }: MobileNavigationProps) {
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
-          className="absolute top-16 left-0 right-0 z-50 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-6 py-6 shadow-xl backdrop-blur-md"
+          className="absolute top-16 left-0 right-0 z-50 border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)]/98 px-6 py-6 shadow-2xl backdrop-blur-md"
         >
           <nav aria-label="Mobile Navigation" className="flex flex-col gap-2">
-            {navigationItems.map((item) => {
+            {mobileNavigationItems.map((item) => {
               const isActive =
                 item.href === "/"
                   ? pathname === "/"
                   : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const Icon = item.icon;
+
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setIsOpen(false)}
                   className={cn(
-                    "px-4 py-3 text-base font-medium rounded-md transition-colors duration-150 focus-ring",
+                    "flex items-center gap-3 px-4 py-3 text-base font-medium rounded-md transition-colors duration-150 focus-ring",
                     isActive
                       ? "text-[var(--color-text-primary)] bg-[var(--color-surface-elevated)]"
                       : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-elevated)]"
                   )}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  {item.label}
+                  {Icon && <Icon className="h-4 w-4 text-[var(--color-text-muted)]" />}
+                  <span>{item.label}</span>
                 </Link>
               );
             })}

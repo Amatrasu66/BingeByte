@@ -101,6 +101,12 @@ export interface FrameXTelemetryMessage {
   duration: number;
 }
 
+function parseBooleanFlag(val?: string): boolean {
+  if (!val) return false;
+  const normalized = val.trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
 export class FrameXTVAdapter implements PlaybackProvider {
   public readonly id = "framextv";
   public readonly name = "FrameXTV";
@@ -147,14 +153,14 @@ export class FrameXTVAdapter implements PlaybackProvider {
       return this.explicitConfig.enabled && this.isConfigured();
     }
 
-    const isFlagEnabled = process.env.ENABLE_FRAMEXTV_PROVIDER === "true";
+    const isFlagEnabled = parseBooleanFlag(process.env.ENABLE_FRAMEXTV_PROVIDER);
     if (!isFlagEnabled) {
       return false;
     }
 
     // Explicit production environment guard
     if (process.env.NODE_ENV === "production") {
-      const isProductionApproved = process.env.FRAMEXTV_PRODUCTION_APPROVED === "true";
+      const isProductionApproved = parseBooleanFlag(process.env.FRAMEXTV_PRODUCTION_APPROVED);
       return isProductionApproved && this.isConfigured();
     }
 

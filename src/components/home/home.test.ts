@@ -142,9 +142,9 @@ describe("Featured Media Selection Strategy", () => {
     assert.strictEqual(result.some((r) => r.id === 992), false);
   });
 
-  it("should fall back to curated titles if live lists are empty or null", () => {
-    const result = selectFeaturedMedia(null, null, null, 4);
-    assert.strictEqual(result.length, 4);
+  it("should fall back to curated titles if live lists are empty or null and support up to 10 titles", () => {
+    const result = selectFeaturedMedia(null, null, null, 10);
+    assert.strictEqual(result.length, 10);
     assert.strictEqual(result[0].id, FALLBACK_FEATURED_TITLES[0].id);
   });
 });

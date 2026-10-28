@@ -82,8 +82,8 @@ async function HomeContent() {
   const animeItems = animeRes.status === "fulfilled" ? animeRes.value.results : null;
   const animeError = animeRes.status === "rejected" ? animeRes.reason?.message : null;
 
-  // Curate 5-6 dynamic rotating featured titles combining top trending and popular titles
-  const featuredItems = selectFeaturedMedia(trendingItems, movieItems, tvItems, 6);
+  // Curate up to 10 dynamic rotating featured titles combining top trending and popular titles
+  const featuredItems = selectFeaturedMedia(trendingItems, movieItems, tvItems, 10);
 
   return (
     <div className="w-full">
@@ -94,8 +94,8 @@ async function HomeContent() {
         </div>
       )}
 
-      {/* Section 2: Full-Viewport Cinematic Hero Carousel */}
-      <FeaturedHero items={featuredItems} />
+      {/* Section 2: Full-Viewport Cinematic Hero Carousel with 3-second rotation */}
+      <FeaturedHero items={featuredItems} intervalMs={3000} />
 
       {/* Main Content Browsing Rails */}
       <main className="pb-16 sm:pb-24">
