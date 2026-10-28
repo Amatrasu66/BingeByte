@@ -12,6 +12,7 @@ import {
   DiscoveryPagination,
   DiscoveryEmptyState,
 } from "@/components/discovery";
+import { JikanSpotlight } from "@/components/anime/jikan-spotlight";
 import {
   getTVGenres,
   discoverAnime,
@@ -19,6 +20,7 @@ import {
   getSafeErrorMessage,
   TMDBConfigError,
 } from "@/lib/tmdb";
+import { getJikanTopAnime } from "@/lib/jikan";
 import type { TMDBGenre, PaginatedResult, NormalizedMedia } from "@/lib/tmdb/types";
 
 export const metadata = {
@@ -54,10 +56,21 @@ async function AnimeDiscoveryContent({ searchParams }: AnimePageProps) {
   const params = await searchParams;
   const validatedFilters = parseDiscoverSearchParams(params);
 
-  // Fetch TV genres (for secondary genre selection) and discover anime in parallel
-  const [genresRes, discoverRes] = await Promise.allSettled([
+  const hasActiveFilters = Boolean(
+    validatedFilters.genre ||
+      validatedFilters.yearFrom ||
+      validatedFilters.yearTo ||
+      validatedFilters.minRating ||
+      (validatedFilters.sortBy && validatedFilters.sortBy !== "popularity.desc")
+  );
+
+  const isDefaultView = !hasActiveFilters && validatedFilters.page === 1;
+
+  // Fetch TV genres (for secondary genre selection), discover anime, and optional Jikan spotlight in parallel
+  const [genresRes, discoverRes, jikanRes] = await Promise.allSettled([
     getTVGenres(),
     discoverAnime(validatedFilters),
+    isDefaultView ? getJikanTopAnime(1).catch(() => null) : Promise.resolve(null),
   ]);
 
   const isConfigError =
@@ -90,13 +103,10 @@ async function AnimeDiscoveryContent({ searchParams }: AnimePageProps) {
   const totalPages = result?.totalPages || 0;
   const currentPage = validatedFilters.page;
 
-  const hasActiveFilters = Boolean(
-    validatedFilters.genre ||
-      validatedFilters.yearFrom ||
-      validatedFilters.yearTo ||
-      validatedFilters.minRating ||
-      (validatedFilters.sortBy && validatedFilters.sortBy !== "popularity.desc")
-  );
+  const jikanItems =
+    jikanRes.status === "fulfilled" && jikanRes.value?.results
+      ? jikanRes.value.results
+      : null;
 
   return (
     <div className="space-y-8 sm:space-y-10">
@@ -122,6 +132,9 @@ async function AnimeDiscoveryContent({ searchParams }: AnimePageProps) {
         yearLabel="Release Year"
         disableLanguageFilter={true}
       />
+
+      {/* Jikan Supplementary MAL Spotlight (Rendered on default view when data is available) */}
+      {isDefaultView && <JikanSpotlight items={jikanItems} />}
 
       {/* Content Results State */}
       {discoverError ? (
