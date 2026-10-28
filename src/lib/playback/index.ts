@@ -12,6 +12,7 @@ export * from "./nexstream";
 export * from "./framextv";
 export * from "./security";
 export * from "./registry";
+export * from "./lifecycle";
 
 /**
  * Returns the active default playback provider.

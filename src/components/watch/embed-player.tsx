@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import type { PlaybackEmbedResult, PlaybackProviderDescriptor } from "@/lib/playback";
 import { ProviderSelector } from "./provider-selector";
+import { usePlaybackLifecycle } from "./use-playback-lifecycle";
 
 export interface EmbedPlayerProps {
   result: PlaybackEmbedResult;
@@ -37,6 +38,17 @@ export function EmbedPlayer({
   const [hasError, setHasError] = useState<boolean>(false);
   const [retryCount, setRetryCount] = useState<number>(0);
   const [selectedSourceIndex, setSelectedSourceIndex] = useState<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Synchronize target changes (e.g. navigating between TV episodes or movie-to-tv)
+  const currentTarget = `${mediaType}:${mediaId}:${season ?? ""}:${episode ?? ""}`;
+  const [prevTarget, setPrevTarget] = useState<string>(currentTarget);
+  if (currentTarget !== prevTarget) {
+    setPrevTarget(currentTarget);
+    setSelectedSourceIndex(0);
+    setIsLoading(true);
+    setHasError(false);
+  }
 
   const availableSources = React.useMemo(() => {
     if (result.status === "ready" && Array.isArray(result.sources) && result.sources.length > 0) {
@@ -50,6 +62,19 @@ export function EmbedPlayer({
 
   const activeSource = availableSources[selectedSourceIndex] || availableSources[0];
   const activeStreamUrl = activeSource?.url || (result.status === "ready" ? result.url : "");
+
+  // Coordinate playback session lifecycle
+  usePlaybackLifecycle({
+    containerRef,
+    streamUrl: activeStreamUrl,
+    title,
+    enabled: result.status === "ready" && !hasError,
+    onLoad: () => setIsLoading(false),
+    onError: () => {
+      setIsLoading(false);
+      setHasError(true);
+    },
+  });
 
   const handleRetry = useCallback(() => {
     setIsLoading(true);
@@ -238,20 +263,11 @@ export function EmbedPlayer({
               </div>
             </div>
           ) : (
-            <iframe
-              key={`player-${result.target.tmdbId}-${result.providerId}-${selectedSourceIndex}-${retryCount}`}
-              src={activeStreamUrl}
-              title={`${title} - Video Player`}
-              allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-              allowFullScreen
-              loading="eager"
-              referrerPolicy="origin"
-              onLoad={() => setIsLoading(false)}
-              onError={() => {
-                setIsLoading(false);
-                setHasError(true);
-              }}
-              className="absolute inset-0 h-full w-full border-0"
+            <div
+              ref={containerRef}
+              key={`player-${mediaType}-${mediaId}-${season ?? ""}-${episode ?? ""}-${result.providerId}-${selectedSourceIndex}-${retryCount}`}
+              className="absolute inset-0 h-full w-full"
+              aria-label={`${title} - Video Player Container`}
             />
           )}
         </div>

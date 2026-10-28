@@ -19,4 +19,7 @@ export type { WatchErrorStateProps } from "./watch-error-state";
 export { ProviderSelector } from "./provider-selector";
 export type { ProviderSelectorProps } from "./provider-selector";
 
+export { usePlaybackLifecycle } from "./use-playback-lifecycle";
+export type { UsePlaybackLifecycleOptions } from "./use-playback-lifecycle";
+
 export { WatchSkeleton } from "./watch-skeleton";

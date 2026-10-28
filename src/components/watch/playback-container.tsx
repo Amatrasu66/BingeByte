@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { PlaybackEmbedResult, PlaybackProviderDescriptor } from "@/lib/playback";
+import { usePathname } from "next/navigation";
+import {
+  PlaybackEmbedResult,
+  PlaybackProviderDescriptor,
+  PlaybackResolutionCoordinator,
+} from "@/lib/playback";
 import type { NormalizedVideo } from "@/lib/tmdb/types";
 import { saveWatchProgress } from "@/lib/storage/continue-watching";
 import { EmbedPlayer } from "./embed-player";
@@ -37,11 +42,12 @@ export function PlaybackContainer({
   episodeTitle,
   availableProviders = [],
 }: PlaybackContainerProps) {
+  const pathname = usePathname();
   const [activeMode, setActiveMode] = useState<"stream" | "trailer">(initialMode);
   const [selectedProviderResult, setSelectedProviderResult] = useState<PlaybackEmbedResult | null>(null);
   const [prevPlaybackResult, setPrevPlaybackResult] = useState<PlaybackEmbedResult>(playbackResult);
   const [isResolvingProvider, setIsResolvingProvider] = useState<boolean>(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const coordinatorRef = useRef<PlaybackResolutionCoordinator>(new PlaybackResolutionCoordinator());
 
   // Adjust state during render when incoming playbackResult prop changes (e.g. episode navigation)
   if (playbackResult !== prevPlaybackResult) {
@@ -50,17 +56,18 @@ export function PlaybackContainer({
   }
 
   const currentResult = selectedProviderResult ?? playbackResult;
-
   const hasTrailer = Boolean(trailer);
 
-  // Clean up any pending abort controllers on unmount
+  // Invalidate any pending resolution requests when leaving the watch route, changing results, or unmounting
   useEffect(() => {
+    const coordinator = coordinatorRef.current;
+    if (pathname !== "/watch") {
+      coordinator.abort();
+    }
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      coordinator.abort();
     };
-  }, []);
+  }, [pathname, playbackResult]);
 
   // Provider switching handler with race condition prevention
   const handleSelectProvider = useCallback(
@@ -69,13 +76,8 @@ export function PlaybackContainer({
         return;
       }
 
-      // Cancel previous in-flight request to avoid stale overwrites
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-
+      // Start new request through coordinator, cancelling previous in-flight attempts
+      const { signal, requestId } = coordinatorRef.current.startRequest();
       setIsResolvingProvider(true);
 
       try {
@@ -90,7 +92,7 @@ export function PlaybackContainer({
         }
 
         const res = await fetch(`/api/playback/resolve?${params.toString()}`, {
-          signal: controller.signal,
+          signal,
         });
 
         if (!res.ok) {
@@ -98,6 +100,11 @@ export function PlaybackContainer({
         }
 
         const data = await res.json();
+        // Discard response if a newer request was dispatched or if navigated away
+        if (!coordinatorRef.current.isLatest(requestId)) {
+          return;
+        }
+
         if (data && data.result) {
           setSelectedProviderResult(data.result);
           // Seamlessly update URL without a disruptive page reload
@@ -109,7 +116,10 @@ export function PlaybackContainer({
         }
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") {
-          return; // Intentionally aborted by another user action
+          return; // Intentionally aborted by another user action or navigation
+        }
+        if (!coordinatorRef.current.isLatest(requestId)) {
+          return;
         }
         setSelectedProviderResult({
           status: "api_error",
@@ -120,7 +130,9 @@ export function PlaybackContainer({
           target: currentResult.target,
         });
       } finally {
-        setIsResolvingProvider(false);
+        if (coordinatorRef.current.isLatest(requestId)) {
+          setIsResolvingProvider(false);
+        }
       }
     },
     [isResolvingProvider, currentResult, mediaType, mediaId, season, episode]

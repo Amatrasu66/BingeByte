@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import {
   FrameXTVAdapter,
   FRAMEXTV_DEFAULT_BASE_URL,
+  FRAMEXTV_DOCUMENTED_SERVERS,
   FRAMEXTV_EXTRACTION_SERVERS,
   isValidFrameXMessageOrigin,
 } from "./framextv";
 
-describe("Phase 14A FrameXTV Adapter (Prepared Interface)", () => {
+describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
   describe("Production Disabled Safeguard", () => {
     it("should be disabled by default in production", () => {
       const adapter = new FrameXTVAdapter();
@@ -15,6 +16,7 @@ describe("Phase 14A FrameXTV Adapter (Prepared Interface)", () => {
       assert.strictEqual(adapter.id, "framextv");
       assert.strictEqual(adapter.name, "FrameXTV");
       assert.deepStrictEqual(adapter.supportedMediaTypes, ["movie", "tv"]);
+      assert.strictEqual(FRAMEXTV_DEFAULT_BASE_URL, "https://framextv.xyz");
     });
 
     it("should return unavailable status when queried while disabled", async () => {
@@ -33,30 +35,31 @@ describe("Phase 14A FrameXTV Adapter (Prepared Interface)", () => {
   describe("Embed URL Resolution When Enabled (Test Mode)", () => {
     const enabledAdapter = new FrameXTVAdapter({ enabled: true });
 
-    it("should resolve valid movie embed URL with extraction servers", async () => {
+    it("should resolve officially documented movie embed URL (/embed/{id}) with extraction servers", async () => {
       const res = await enabledAdapter.getMovieEmbedUrl(550);
       assert.strictEqual(res.status, "ready");
       if (res.status === "ready") {
-        assert.strictEqual(res.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/movie/550`);
+        assert.strictEqual(res.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/550`);
         assert.strictEqual(res.providerId, "framextv");
         assert.strictEqual(res.target.tmdbId, 550);
 
-        // Verify extraction servers are mapped
+        // Verify documented extraction servers are mapped
         assert.ok(Array.isArray(res.sources));
         assert.strictEqual(res.sources.length, FRAMEXTV_EXTRACTION_SERVERS.length);
-        assert.strictEqual(res.sources[0].serverId, "headhunter");
+        assert.strictEqual(res.sources[0].serverId, "barbarian");
+        assert.match(res.sources[0].name, /Barbarian I/);
         assert.strictEqual(
           res.sources[0].url,
-          `${FRAMEXTV_DEFAULT_BASE_URL}/embed/movie/550?server=headhunter`
+          `${FRAMEXTV_DEFAULT_BASE_URL}/embed/550?server=barbarian`
         );
       }
     });
 
-    it("should resolve valid TV series embed URL with extraction servers", async () => {
+    it("should resolve officially documented TV embed URL (/embed/{id}/{s}/{e}) with extraction servers", async () => {
       const res = await enabledAdapter.getTVEmbedUrl(1399, 2, 4);
       assert.strictEqual(res.status, "ready");
       if (res.status === "ready") {
-        assert.strictEqual(res.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/tv/1399/2/4`);
+        assert.strictEqual(res.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/1399/2/4`);
         assert.strictEqual(res.target.tmdbId, 1399);
         if (res.target.mediaType === "tv") {
           assert.strictEqual(res.target.season, 2);
@@ -64,10 +67,12 @@ describe("Phase 14A FrameXTV Adapter (Prepared Interface)", () => {
         }
 
         assert.ok(Array.isArray(res.sources));
-        assert.strictEqual(res.sources.length, FRAMEXTV_EXTRACTION_SERVERS.length);
+        assert.strictEqual(res.sources.length, FRAMEXTV_DOCUMENTED_SERVERS.length);
+        assert.strictEqual(res.sources[1].serverId, "archer");
+        assert.match(res.sources[1].name, /Archer II/);
         assert.strictEqual(
           res.sources[1].url,
-          `${FRAMEXTV_DEFAULT_BASE_URL}/embed/tv/1399/2/4?server=hog_rider`
+          `${FRAMEXTV_DEFAULT_BASE_URL}/embed/1399/2/4?server=archer`
         );
       }
     });
@@ -76,7 +81,22 @@ describe("Phase 14A FrameXTV Adapter (Prepared Interface)", () => {
       const res = await enabledAdapter.getTVEmbedUrl(1399, 0, 1);
       assert.strictEqual(res.status, "ready");
       if (res.status === "ready") {
-        assert.strictEqual(res.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/tv/1399/0/1`);
+        assert.strictEqual(res.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/1399/0/1`);
+      }
+    });
+
+    it("should support legacy patterns when useLegacyPatterns is explicitly enabled", async () => {
+      const legacyAdapter = new FrameXTVAdapter({ enabled: true, useLegacyPatterns: true });
+      const movieRes = await legacyAdapter.getMovieEmbedUrl(550);
+      assert.strictEqual(movieRes.status, "ready");
+      if (movieRes.status === "ready") {
+        assert.strictEqual(movieRes.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/movie/550`);
+      }
+
+      const tvRes = await legacyAdapter.getTVEmbedUrl(1399, 1, 2);
+      assert.strictEqual(tvRes.status, "ready");
+      if (tvRes.status === "ready") {
+        assert.strictEqual(tvRes.url, `${FRAMEXTV_DEFAULT_BASE_URL}/embed/tv/1399/1/2`);
       }
     });
 

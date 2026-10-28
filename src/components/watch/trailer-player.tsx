@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useRef } from "react";
 import { isValidYouTubeKey } from "@/lib/tmdb/normalizers";
 import type { NormalizedVideo } from "@/lib/tmdb/types";
+import { usePlaybackLifecycle } from "./use-playback-lifecycle";
 
 export interface TrailerPlayerProps {
   trailer: NormalizedVideo | null;
@@ -10,7 +12,19 @@ export interface TrailerPlayerProps {
 }
 
 export function TrailerPlayer({ trailer, title }: TrailerPlayerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const isKeyValid = trailer && isValidYouTubeKey(trailer.key);
+  const trailerUrl = isKeyValid
+    ? `https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=0&rel=0`
+    : null;
+
+  usePlaybackLifecycle({
+    containerRef,
+    streamUrl: trailerUrl,
+    title: `${title} - ${trailer?.name || "Official Trailer"}`,
+    allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+    enabled: Boolean(isKeyValid),
+  });
 
   return (
     <section aria-labelledby="trailer-player-heading" className="w-full">
@@ -55,12 +69,11 @@ export function TrailerPlayer({ trailer, title }: TrailerPlayerProps) {
       {/* Video Container or Empty State */}
       <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-deep)] shadow-xl">
         {isKeyValid ? (
-          <iframe
-            src={`https://www.youtube-nocookie.com/embed/${trailer.key}?autoplay=0&rel=0`}
-            title={`${title} - ${trailer.name || "Official Trailer"}`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="absolute inset-0 h-full w-full border-0"
+          <div
+            ref={containerRef}
+            key={`trailer-${trailer.key}`}
+            className="absolute inset-0 h-full w-full"
+            aria-label={`${title} - Trailer Player Container`}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center p-6 sm:p-12 text-center">

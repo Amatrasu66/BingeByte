@@ -1,16 +1,21 @@
 /**
- * BingeByte — FrameXTV Playback Provider Adapter (Prepared Interface)
+ * BingeByte — FrameXTV Playback Provider Adapter (Verified Contract)
  *
  * Implements the PlaybackProvider interface for FrameXTV.
- * NOTE: FrameXTV is DISABLED by default in production per Phase 14A requirements
+ * NOTE: FrameXTV is DISABLED by default in production per Phase 14A/14B requirements
  * until licensing authorization, terms of service, and embedding behaviors are fully verified.
  *
- * Technical Specification (from Phase 14A Audit of https://framextv.cc/api):
- * - Movie Pattern: https://framextv.tech/embed/movie/{tmdbId}
- * - TV Pattern: https://framextv.tech/embed/tv/{tmdbId}/{season}/{episode}
- * - Extraction Servers: headhunter, hog_rider, lavahound, miner, valkyrie, druid, skeleton_king, monk
- * - Supported Query Parameters: autoplay=1
- * - Required Iframe Permissions: allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+ * Verified Technical Specification (audited from https://framextv.cc/api & DocsPage):
+ * - Canonical Base URL: https://framextv.xyz
+ * - Approved Domains: framextv.xyz, framextv.tech, framextv.cc, framextv.pro
+ * - Documented Movie Pattern: /embed/{tmdbId}
+ * - Documented TV Pattern: /embed/{tmdbId}/{season}/{episode}
+ * - Documented Extraction Providers: barbarian (Barbarian I), archer (Archer II), goblin (Goblin III), pekka (P.E.K.K.A IV)
+ * - Internal Bundle Extraction Servers (Discrepancy Explained): headhunter, hog_rider, lavahound, miner, valkyrie, druid, skeleton_king, monk
+ * - Documented Query Parameters: autoplay (1|0), muted (1|0), t / start (seconds), speed (0.5..2), controls (1|0), server / provider (name)
+ * - Documented postMessage Actions: play, pause, seek, seekBy, setVolume, mute, setProvider, setSubtitle
+ * - Documented Telemetry Event: frameXTV:timeupdate (currentTime, duration)
+ * - Anime Status: Unverified in official documentation (omitted to preserve safe contract)
  */
 
 import {
@@ -24,16 +29,29 @@ import {
 import { isValidPositiveInteger, isValidNonNegativeInteger } from "./nexstream";
 import { validatePlaybackUrl } from "./security";
 
-export const FRAMEXTV_DEFAULT_BASE_URL = "https://framextv.tech";
+export const FRAMEXTV_DEFAULT_BASE_URL = "https://framextv.xyz";
 
 export const FRAMEXTV_APPROVED_HOSTS: readonly string[] = Object.freeze([
+  "framextv.xyz",
   "framextv.tech",
   "framextv.cc",
-  "framextv.xyz",
   "framextv.pro",
 ]);
 
-export const FRAMEXTV_EXTRACTION_SERVERS: readonly string[] = Object.freeze([
+/**
+ * Officially documented extraction server providers from https://framextv.cc/api DocsPage.
+ */
+export const FRAMEXTV_DOCUMENTED_SERVERS: readonly string[] = Object.freeze([
+  "barbarian",
+  "archer",
+  "goblin",
+  "pekka",
+]);
+
+/**
+ * Internal extraction servers discovered in web application bundle.
+ */
+export const FRAMEXTV_INTERNAL_SERVERS: readonly string[] = Object.freeze([
   "headhunter",
   "hog_rider",
   "lavahound",
@@ -44,9 +62,43 @@ export const FRAMEXTV_EXTRACTION_SERVERS: readonly string[] = Object.freeze([
   "monk",
 ]);
 
+// Default extraction servers alias to officially documented servers
+export const FRAMEXTV_EXTRACTION_SERVERS = FRAMEXTV_DOCUMENTED_SERVERS;
+
 export interface FrameXTVConfig {
   baseUrl?: string;
   enabled?: boolean;
+  autoplay?: boolean;
+  muted?: boolean;
+  useLegacyPatterns?: boolean;
+}
+
+/**
+ * FrameXTV postMessage API contract.
+ */
+export type FrameXCommandAction =
+  | "play"
+  | "pause"
+  | "seek"
+  | "seekBy"
+  | "setVolume"
+  | "mute"
+  | "setProvider"
+  | "setSubtitle";
+
+export interface FrameXCommandMessage {
+  action: FrameXCommandAction;
+  time?: number;
+  seconds?: number;
+  volume?: number;
+  provider?: string;
+  index?: number;
+}
+
+export interface FrameXTelemetryMessage {
+  event: "frameXTV:timeupdate";
+  currentTime: number;
+  duration: number;
 }
 
 export class FrameXTVAdapter implements PlaybackProvider {
@@ -55,7 +107,7 @@ export class FrameXTVAdapter implements PlaybackProvider {
   public readonly supportedMediaTypes: ReadonlyArray<PlaybackMediaType> = Object.freeze(["movie", "tv"]);
   public readonly capabilities: PlaybackProviderCapabilities = Object.freeze({
     supportsExtractionServers: true,
-    supportsMessageBridge: false,
+    supportsMessageBridge: true,
   });
 
   private readonly explicitConfig?: FrameXTVConfig;
@@ -98,12 +150,19 @@ export class FrameXTVAdapter implements PlaybackProvider {
    * Builds an array of extraction server sources for a given embed path.
    */
   private buildExtractionSources(baseEmbedUrl: string): PlaybackSource[] {
-    return FRAMEXTV_EXTRACTION_SERVERS.map((server, index) => {
+    const serverLabels: Record<string, string> = {
+      barbarian: "Barbarian I (Subtitles & HLS)",
+      archer: "Archer II (Multi-Audio & 4K)",
+      goblin: "Goblin III (Fast Mirror)",
+      pekka: "P.E.K.K.A IV (High Bitrate)",
+    };
+
+    return FRAMEXTV_DOCUMENTED_SERVERS.map((server, index) => {
       const serverUrl = new URL(baseEmbedUrl);
       serverUrl.searchParams.set("server", server);
       return {
         serverId: server,
-        name: `Server ${index + 1} (${server.replace(/_/g, " ")})`,
+        name: serverLabels[server] || `Server ${index + 1} (${server})`,
         url: serverUrl.toString(),
       };
     });
@@ -141,7 +200,12 @@ export class FrameXTVAdapter implements PlaybackProvider {
       };
     }
 
-    const rawUrl = `${this.getBaseUrl()}/embed/movie/${numericId}`;
+    // Use documented pattern /embed/{id} (or legacy /embed/movie/{id} if configured)
+    const embedPath = this.explicitConfig?.useLegacyPatterns
+      ? `/embed/movie/${numericId}`
+      : `/embed/${numericId}`;
+
+    const rawUrl = `${this.getBaseUrl()}${embedPath}`;
     const validation = validatePlaybackUrl(rawUrl, FRAMEXTV_APPROVED_HOSTS);
 
     if (!validation.isValid || !validation.sanitizedUrl) {
@@ -229,7 +293,12 @@ export class FrameXTVAdapter implements PlaybackProvider {
       };
     }
 
-    const rawUrl = `${this.getBaseUrl()}/embed/tv/${numericId}/${numericSeason}/${numericEpisode}`;
+    // Use documented pattern /embed/{id}/{season}/{episode} (or legacy /embed/tv/{id}/{s}/{e} if configured)
+    const embedPath = this.explicitConfig?.useLegacyPatterns
+      ? `/embed/tv/${numericId}/${numericSeason}/${numericEpisode}`
+      : `/embed/${numericId}/${numericSeason}/${numericEpisode}`;
+
+    const rawUrl = `${this.getBaseUrl()}${embedPath}`;
     const validation = validatePlaybackUrl(rawUrl, FRAMEXTV_APPROVED_HOSTS);
 
     if (!validation.isValid || !validation.sanitizedUrl) {
