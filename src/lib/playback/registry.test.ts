@@ -238,6 +238,19 @@ describe("Provider-Neutral Playback Registry", () => {
       assert.match(res.reason, /unavailable or disabled/i);
     });
 
+    it("should strictly return unavailable when FrameXTV is requested directly while disabled", async () => {
+      const target: PlaybackTarget = { mediaType: "movie", tmdbId: 687163 };
+      // Guarantee FrameXTV is disabled
+      delete process.env.ENABLE_FRAMEXTV_PROVIDER;
+      delete process.env.FRAMEXTV_PRODUCTION_APPROVED;
+      resetProviderRegistry();
+
+      const res = await resolvePlaybackWithProvider(target, "framextv");
+      assert.strictEqual(res.status, "unavailable");
+      assert.strictEqual(res.providerId, "framextv");
+      assert.match(res.reason, /unavailable or disabled/i);
+    });
+
     it("should reject resolution when media type is not supported by the provider", async () => {
       // Provider that only supports movies
       const movieOnly = new MockTestProvider("movie-only", "Movies Only", ["movie"], true);

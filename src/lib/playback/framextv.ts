@@ -136,25 +136,41 @@ export class FrameXTVAdapter implements PlaybackProvider {
 
   /**
    * Checks whether FrameXTV is enabled.
-   * STRICT SECURITY GUARANTEE: Disabled by default in production.
-   * Only enabled when explicitly configured via explicitConfig.enabled or ENABLE_FRAMEXTV_PROVIDER=true.
+   * STRICT SECURITY GUARANTEE: Disabled by default in all environments.
+   * - In development/testing: Enabled when explicitly configured via explicitConfig.enabled
+   *   or when ENABLE_FRAMEXTV_PROVIDER=true in local environment.
+   * - In production: Remains strictly disabled unless an explicit production authorization
+   *   flag (FRAMEXTV_PRODUCTION_APPROVED=true) is satisfied.
    */
   public isAvailable(): boolean {
     if (typeof this.explicitConfig?.enabled === "boolean") {
       return this.explicitConfig.enabled && this.isConfigured();
     }
-    return process.env.ENABLE_FRAMEXTV_PROVIDER === "true" && this.isConfigured();
+
+    const isFlagEnabled = process.env.ENABLE_FRAMEXTV_PROVIDER === "true";
+    if (!isFlagEnabled) {
+      return false;
+    }
+
+    // Explicit production environment guard
+    if (process.env.NODE_ENV === "production") {
+      const isProductionApproved = process.env.FRAMEXTV_PRODUCTION_APPROVED === "true";
+      return isProductionApproved && this.isConfigured();
+    }
+
+    return this.isConfigured();
   }
 
   /**
    * Builds an array of extraction server sources for a given embed path.
+   * Uses clean, neutral server names without unsubstantiated quality claims.
    */
   private buildExtractionSources(baseEmbedUrl: string): PlaybackSource[] {
     const serverLabels: Record<string, string> = {
-      barbarian: "Barbarian I (Subtitles & HLS)",
-      archer: "Archer II (Multi-Audio & 4K)",
-      goblin: "Goblin III (Fast Mirror)",
-      pekka: "P.E.K.K.A IV (High Bitrate)",
+      barbarian: "Barbarian",
+      archer: "Archer",
+      goblin: "Goblin",
+      pekka: "Pekka",
     };
 
     return FRAMEXTV_DOCUMENTED_SERVERS.map((server, index) => {
@@ -357,5 +373,100 @@ export function isValidFrameXMessageOrigin(origin: string): boolean {
     );
   } catch {
     return false;
+  }
+}
+
+/**
+ * Validates and safely parses an incoming postMessage event from a FrameXTV player.
+ * Enforces origin validation, source window identity verification, and telemetry structure.
+ */
+export function parseFrameXTelemetryEvent(
+  data: unknown,
+  origin: string,
+  sourceWindow?: unknown,
+  expectedWindow?: unknown
+): FrameXTelemetryMessage | null {
+  if (!isValidFrameXMessageOrigin(origin)) {
+    return null;
+  }
+
+  if (expectedWindow && sourceWindow && sourceWindow !== expectedWindow) {
+    return null;
+  }
+
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const payload = data as Record<string, unknown>;
+  if (payload.event !== "frameXTV:timeupdate") {
+    return null;
+  }
+
+  const currentTime = Number(payload.currentTime);
+  const duration = Number(payload.duration);
+
+  if (!Number.isFinite(currentTime) || currentTime < 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(duration) || duration < 0) {
+    return null;
+  }
+
+  return {
+    event: "frameXTV:timeupdate",
+    currentTime,
+    duration,
+  };
+}
+
+/**
+ * Creates a validated, hardened FrameXTV postMessage command payload.
+ * Sanitizes action names, clamps volume (0.0 to 1.0), and enforces numeric bounds.
+ */
+export function createFrameXCommandMessage(
+  action: FrameXCommandAction,
+  options?: {
+    time?: number;
+    seconds?: number;
+    volume?: number;
+    provider?: string;
+    index?: number;
+  }
+): FrameXCommandMessage | null {
+  switch (action) {
+    case "play":
+    case "pause":
+    case "mute":
+      return { action };
+    case "seek": {
+      const time = Number(options?.time);
+      if (!Number.isFinite(time) || time < 0) return null;
+      return { action: "seek", time };
+    }
+    case "seekBy": {
+      const seconds = Number(options?.seconds);
+      if (!Number.isFinite(seconds)) return null;
+      return { action: "seekBy", seconds };
+    }
+    case "setVolume": {
+      const volume = Number(options?.volume);
+      if (!Number.isFinite(volume)) return null;
+      const clamped = Math.max(0, Math.min(1, volume));
+      return { action: "setVolume", volume: clamped };
+    }
+    case "setProvider": {
+      const provider = options?.provider?.trim().toLowerCase();
+      if (!provider) return null;
+      return { action: "setProvider", provider };
+    }
+    case "setSubtitle": {
+      const index = Number(options?.index);
+      if (!Number.isInteger(index) || index < 0) return null;
+      return { action: "setSubtitle", index };
+    }
+    default:
+      return null;
   }
 }

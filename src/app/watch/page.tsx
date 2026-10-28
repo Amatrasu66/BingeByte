@@ -95,6 +95,11 @@ async function WatchContent({ searchParams }: WatchPageProps) {
   const { type, id, season = 1, episode = 1, provider } = validation.data;
   const availableProviders = getAvailableProviderDescriptors();
 
+  // Ensure requested provider is actually enabled and available; fallback to default provider if disabled
+  const isRequestedProviderAvailable =
+    !provider || availableProviders.some((p) => p.id === provider);
+  const activeProvider = isRequestedProviderAvailable ? provider : undefined;
+
   if (type === "movie") {
     // Execute movie metadata and playback stream queries in parallel
     const [movieRes, videosRes, playbackResult] = await Promise.all([
@@ -111,7 +116,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
           mediaType: "movie",
           tmdbId: id,
         },
-        provider
+        activeProvider
       ),
     ]);
 
@@ -190,7 +195,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
         season,
         episode,
       },
-      provider
+      activeProvider
     ),
   ]);
 

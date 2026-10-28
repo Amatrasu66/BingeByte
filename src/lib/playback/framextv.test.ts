@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   FrameXTVAdapter,
@@ -6,11 +6,25 @@ import {
   FRAMEXTV_DOCUMENTED_SERVERS,
   FRAMEXTV_EXTRACTION_SERVERS,
   isValidFrameXMessageOrigin,
+  parseFrameXTelemetryEvent,
+  createFrameXCommandMessage,
 } from "./framextv";
 
-describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
-  describe("Production Disabled Safeguard", () => {
-    it("should be disabled by default in production", () => {
+describe("Phase 14C FrameXTV Controlled Integration & Provider Readiness", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.ENABLE_FRAMEXTV_PROVIDER;
+    delete process.env.FRAMEXTV_PRODUCTION_APPROVED;
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe("Production Disabled Safeguard & Dual-Guard Gating", () => {
+    it("should be disabled by default in production and development", () => {
       const adapter = new FrameXTVAdapter();
       assert.strictEqual(adapter.isAvailable(), false);
       assert.strictEqual(adapter.id, "framextv");
@@ -30,12 +44,37 @@ describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
       const tvRes = await adapter.getTVEmbedUrl(1399, 1, 1);
       assert.strictEqual(tvRes.status, "unavailable");
     });
+
+    it("should enable in non-production when ENABLE_FRAMEXTV_PROVIDER=true", () => {
+      (process.env as Record<string, string | undefined>).NODE_ENV = "development";
+      process.env.ENABLE_FRAMEXTV_PROVIDER = "true";
+
+      const adapter = new FrameXTVAdapter();
+      assert.strictEqual(adapter.isAvailable(), true);
+    });
+
+    it("should remain BLOCKED in production if ENABLE_FRAMEXTV_PROVIDER=true without FRAMEXTV_PRODUCTION_APPROVED=true", () => {
+      (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+      process.env.ENABLE_FRAMEXTV_PROVIDER = "true";
+
+      const adapter = new FrameXTVAdapter();
+      assert.strictEqual(adapter.isAvailable(), false);
+    });
+
+    it("should only enable in production when explicitly approved via FRAMEXTV_PRODUCTION_APPROVED=true", () => {
+      (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+      process.env.ENABLE_FRAMEXTV_PROVIDER = "true";
+      process.env.FRAMEXTV_PRODUCTION_APPROVED = "true";
+
+      const adapter = new FrameXTVAdapter();
+      assert.strictEqual(adapter.isAvailable(), true);
+    });
   });
 
-  describe("Embed URL Resolution When Enabled (Test Mode)", () => {
+  describe("Embed URL Resolution with Neutral Extraction Server Names", () => {
     const enabledAdapter = new FrameXTVAdapter({ enabled: true });
 
-    it("should resolve officially documented movie embed URL (/embed/{id}) with extraction servers", async () => {
+    it("should resolve officially documented movie embed URL (/embed/{id}) with neutral server names", async () => {
       const res = await enabledAdapter.getMovieEmbedUrl(550);
       assert.strictEqual(res.status, "ready");
       if (res.status === "ready") {
@@ -43,19 +82,25 @@ describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
         assert.strictEqual(res.providerId, "framextv");
         assert.strictEqual(res.target.tmdbId, 550);
 
-        // Verify documented extraction servers are mapped
+        // Verify documented extraction servers are mapped with neutral labels
         assert.ok(Array.isArray(res.sources));
         assert.strictEqual(res.sources.length, FRAMEXTV_EXTRACTION_SERVERS.length);
         assert.strictEqual(res.sources[0].serverId, "barbarian");
-        assert.match(res.sources[0].name, /Barbarian I/);
+        assert.strictEqual(res.sources[0].name, "Barbarian");
         assert.strictEqual(
           res.sources[0].url,
           `${FRAMEXTV_DEFAULT_BASE_URL}/embed/550?server=barbarian`
         );
+        assert.strictEqual(res.sources[1].serverId, "archer");
+        assert.strictEqual(res.sources[1].name, "Archer");
+        assert.strictEqual(res.sources[2].serverId, "goblin");
+        assert.strictEqual(res.sources[2].name, "Goblin");
+        assert.strictEqual(res.sources[3].serverId, "pekka");
+        assert.strictEqual(res.sources[3].name, "Pekka");
       }
     });
 
-    it("should resolve officially documented TV embed URL (/embed/{id}/{s}/{e}) with extraction servers", async () => {
+    it("should resolve officially documented TV embed URL (/embed/{id}/{s}/{e}) with neutral server names", async () => {
       const res = await enabledAdapter.getTVEmbedUrl(1399, 2, 4);
       assert.strictEqual(res.status, "ready");
       if (res.status === "ready") {
@@ -69,7 +114,7 @@ describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
         assert.ok(Array.isArray(res.sources));
         assert.strictEqual(res.sources.length, FRAMEXTV_DOCUMENTED_SERVERS.length);
         assert.strictEqual(res.sources[1].serverId, "archer");
-        assert.match(res.sources[1].name, /Archer II/);
+        assert.strictEqual(res.sources[1].name, "Archer");
         assert.strictEqual(
           res.sources[1].url,
           `${FRAMEXTV_DEFAULT_BASE_URL}/embed/1399/2/4?server=archer`
@@ -145,7 +190,7 @@ describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
     });
   });
 
-  describe("PostMessage Origin Security Validation", () => {
+  describe("PostMessage Security & Telemetry Event Parsing", () => {
     it("should accept approved FrameXTV domains", () => {
       assert.strictEqual(isValidFrameXMessageOrigin("https://framextv.tech"), true);
       assert.strictEqual(isValidFrameXMessageOrigin("https://framextv.cc"), true);
@@ -159,6 +204,94 @@ describe("Phase 14B FrameXTV Adapter (Verified Contract)", () => {
       assert.strictEqual(isValidFrameXMessageOrigin("https://fake-framextv.tech"), false);
       assert.strictEqual(isValidFrameXMessageOrigin("https://evil.com"), false);
       assert.strictEqual(isValidFrameXMessageOrigin(""), false);
+    });
+
+    it("should parse valid FrameXTV telemetry events from approved origins", () => {
+      const mockWindow = {};
+      const telemetry = parseFrameXTelemetryEvent(
+        { event: "frameXTV:timeupdate", currentTime: 42.5, duration: 120.0 },
+        "https://framextv.cc",
+        mockWindow,
+        mockWindow
+      );
+
+      assert.deepStrictEqual(telemetry, {
+        event: "frameXTV:timeupdate",
+        currentTime: 42.5,
+        duration: 120.0,
+      });
+    });
+
+    it("should reject telemetry events from unauthorized origins", () => {
+      const telemetry = parseFrameXTelemetryEvent(
+        { event: "frameXTV:timeupdate", currentTime: 10, duration: 100 },
+        "https://malicious-site.com"
+      );
+      assert.strictEqual(telemetry, null);
+    });
+
+    it("should reject telemetry events with mismatched source windows", () => {
+      const expectedWindow = {};
+      const rogueWindow = {};
+      const telemetry = parseFrameXTelemetryEvent(
+        { event: "frameXTV:timeupdate", currentTime: 10, duration: 100 },
+        "https://framextv.cc",
+        rogueWindow,
+        expectedWindow
+      );
+      assert.strictEqual(telemetry, null);
+    });
+
+    it("should reject malformed or negative telemetry data", () => {
+      assert.strictEqual(
+        parseFrameXTelemetryEvent(
+          { event: "frameXTV:timeupdate", currentTime: -5, duration: 100 },
+          "https://framextv.cc"
+        ),
+        null
+      );
+      assert.strictEqual(
+        parseFrameXTelemetryEvent(
+          { event: "other_event", currentTime: 10, duration: 100 },
+          "https://framextv.cc"
+        ),
+        null
+      );
+      assert.strictEqual(parseFrameXTelemetryEvent(null, "https://framextv.cc"), null);
+    });
+
+    it("should construct valid, hardened command messages", () => {
+      // Basic actions
+      assert.deepStrictEqual(createFrameXCommandMessage("play"), { action: "play" });
+      assert.deepStrictEqual(createFrameXCommandMessage("pause"), { action: "pause" });
+      assert.deepStrictEqual(createFrameXCommandMessage("mute"), { action: "mute" });
+
+      // Seek
+      assert.deepStrictEqual(createFrameXCommandMessage("seek", { time: 120 }), {
+        action: "seek",
+        time: 120,
+      });
+      assert.strictEqual(createFrameXCommandMessage("seek", { time: -10 }), null);
+
+      // Volume clamping (0.0 to 1.0)
+      assert.deepStrictEqual(createFrameXCommandMessage("setVolume", { volume: 0.8 }), {
+        action: "setVolume",
+        volume: 0.8,
+      });
+      assert.deepStrictEqual(createFrameXCommandMessage("setVolume", { volume: 1.5 }), {
+        action: "setVolume",
+        volume: 1.0,
+      });
+      assert.deepStrictEqual(createFrameXCommandMessage("setVolume", { volume: -0.5 }), {
+        action: "setVolume",
+        volume: 0.0,
+      });
+
+      // Provider selection
+      assert.deepStrictEqual(
+        createFrameXCommandMessage("setProvider", { provider: "archer" }),
+        { action: "setProvider", provider: "archer" }
+      );
     });
   });
 });

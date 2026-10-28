@@ -269,6 +269,59 @@ describe("Phase 14B Playback Lifecycle & Navigation Repair", () => {
 
       framextvSession.dispose();
     });
+
+    it("should dispose previous iframe when switching FrameXTV extraction servers (Barbarian -> Archer)", () => {
+      // 1. FrameXTV Server 1 (Barbarian)
+      const barbarianSession = createPlaybackSession({
+        container: mockContainer as unknown as HTMLElement,
+        streamUrl: "https://framextv.cc/embed/550?server=barbarian",
+        title: "Fight Club",
+      });
+      assert.strictEqual(mockContainer.children.length, 1);
+      const barbarianIframe = mockContainer.children[0];
+      assert.strictEqual(barbarianIframe.src, "https://framextv.cc/embed/550?server=barbarian");
+
+      // 2. User selects Server 2 (Archer): dispose Barbarian
+      barbarianSession.dispose();
+      assert.strictEqual(barbarianIframe.src, "about:blank");
+      assert.strictEqual(mockContainer.children.length, 0);
+
+      // 3. Mount Server 2 (Archer)
+      const archerSession = createPlaybackSession({
+        container: mockContainer as unknown as HTMLElement,
+        streamUrl: "https://framextv.cc/embed/550?server=archer",
+        title: "Fight Club",
+      });
+      assert.strictEqual(mockContainer.children.length, 1);
+      const archerIframe = mockContainer.children[0];
+      assert.strictEqual(archerIframe.src, "https://framextv.cc/embed/550?server=archer");
+
+      archerSession.dispose();
+      assert.strictEqual(archerIframe.src, "about:blank");
+      assert.strictEqual(mockContainer.children.length, 0);
+    });
+
+    it("should cleanly dispose on failed provider load without leaving lingering player or audio", () => {
+      let errorTriggered = false;
+      const failedSession = createPlaybackSession({
+        container: mockContainer as unknown as HTMLElement,
+        streamUrl: "https://framextv.xyz/embed/invalid",
+        title: "Broken Stream",
+        onError: () => {
+          errorTriggered = true;
+        },
+      });
+
+      const iframe = mockContainer.children[0];
+      iframe.dispatchEvent("error");
+      assert.strictEqual(errorTriggered, true);
+
+      // On error, session is disposed
+      failedSession.dispose();
+      assert.strictEqual(iframe.src, "about:blank");
+      assert.strictEqual(mockContainer.children.length, 0);
+      assert.strictEqual(failedSession.isActive, false);
+    });
   });
 
   describe("Returning to Watch Page & StrictMode Simulation", () => {
