@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import type { PlaybackEmbedResult } from "@/lib/playback";
+import type { PlaybackEmbedResult, PlaybackProviderDescriptor } from "@/lib/playback";
+import { ProviderSelector } from "./provider-selector";
 
 export interface EmbedPlayerProps {
   result: PlaybackEmbedResult;
@@ -14,6 +15,9 @@ export interface EmbedPlayerProps {
   episode?: number;
   hasTrailer?: boolean;
   onSwitchToTrailer?: () => void;
+  availableProviders?: PlaybackProviderDescriptor[];
+  onSelectProvider?: (providerId: string) => void;
+  isResolvingProvider?: boolean;
 }
 
 export function EmbedPlayer({
@@ -25,6 +29,9 @@ export function EmbedPlayer({
   episode,
   hasTrailer = false,
   onSwitchToTrailer,
+  availableProviders = [],
+  onSelectProvider,
+  isResolvingProvider = false,
 }: EmbedPlayerProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
@@ -79,6 +86,16 @@ export function EmbedPlayer({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Provider selection interface */}
+            {availableProviders.length > 0 && onSelectProvider && (
+              <ProviderSelector
+                availableProviders={availableProviders}
+                activeProviderId={result.providerId}
+                onSelectProvider={onSelectProvider}
+                isResolving={isResolvingProvider}
+              />
+            )}
+
             {/* Server selection interface when multiple sources exist */}
             {availableSources.length > 1 && (
               <div
@@ -222,7 +239,7 @@ export function EmbedPlayer({
             </div>
           ) : (
             <iframe
-              key={`player-${result.target.tmdbId}-${selectedSourceIndex}-${retryCount}`}
+              key={`player-${result.target.tmdbId}-${result.providerId}-${selectedSourceIndex}-${retryCount}`}
               src={activeStreamUrl}
               title={`${title} - Video Player`}
               allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
@@ -278,12 +295,23 @@ export function EmbedPlayer({
           </span>
         </div>
 
-        <Link
-          href={detailsUrl}
-          className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-ring rounded py-1 px-1.5"
-        >
-          Back to Details
-        </Link>
+        <div className="flex items-center gap-2">
+          {availableProviders.length > 0 && onSelectProvider && (
+            <ProviderSelector
+              availableProviders={availableProviders}
+              activeProviderId={result.providerId}
+              onSelectProvider={onSelectProvider}
+              isResolving={isResolvingProvider}
+            />
+          )}
+
+          <Link
+            href={detailsUrl}
+            className="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors focus-ring rounded py-1 px-1.5"
+          >
+            Back to Details
+          </Link>
+        </div>
       </div>
 
       <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-[var(--color-border-subtle)] bg-[var(--color-surface-deep)] shadow-xl flex flex-col items-center justify-center p-6 sm:p-12 text-center">

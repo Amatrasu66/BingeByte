@@ -36,9 +36,14 @@ export type PlaybackStatus =
   | "api_error"
   | "invalid_input";
 
+/**
+ * Represents an individual streaming source or extraction server provided by an active provider.
+ */
 export interface PlaybackSource {
   name: string;
   url: string;
+  serverId?: string;
+  quality?: string;
 }
 
 export interface PlaybackEmbedSuccess {
@@ -48,6 +53,8 @@ export interface PlaybackEmbedSuccess {
   providerId: string;
   providerName: string;
   target: PlaybackTarget;
+  /** Active internal extraction server (if supported by provider) */
+  activeServerId?: string;
 }
 
 export interface PlaybackEmbedUnavailable {
@@ -67,16 +74,48 @@ export interface PlaybackProviderConfig {
 }
 
 /**
+ * Capability flags exposed by a playback provider adapter.
+ */
+export interface PlaybackProviderCapabilities {
+  /** Whether the provider supports multiple internal extraction servers */
+  readonly supportsExtractionServers?: boolean;
+  /** Whether the provider supports custom quality presets */
+  readonly supportsQualitySelection?: boolean;
+  /** Whether the provider supports postMessage bridge communication */
+  readonly supportsMessageBridge?: boolean;
+}
+
+/**
+ * Serialized public descriptor of an external playback provider.
+ */
+export interface PlaybackProviderDescriptor {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+  readonly supportedMediaTypes: ReadonlyArray<PlaybackMediaType>;
+  readonly isConfigured: boolean;
+  readonly isAvailable: boolean;
+  readonly capabilities?: PlaybackProviderCapabilities;
+}
+
+/**
  * Abstract interface for any video playback provider adapter.
  */
 export interface PlaybackProvider {
   readonly id: string;
   readonly name: string;
+  readonly supportedMediaTypes?: ReadonlyArray<PlaybackMediaType>;
+  readonly capabilities?: PlaybackProviderCapabilities;
 
   /**
-   * Checks whether the provider has the necessary base URL and API credentials configured.
+   * Checks whether the provider has the necessary base URL and credentials configured.
    */
   isConfigured(): boolean;
+
+  /**
+   * Checks whether the provider is currently available and enabled for playback.
+   */
+  isAvailable?(): boolean;
 
   /**
    * Resolves a validated embed URL for a movie via server-side provider query.
@@ -96,4 +135,23 @@ export interface PlaybackProvider {
    * Resolves playback for a generic PlaybackTarget (movie or TV episode).
    */
   resolvePlayback(target: PlaybackTarget): Promise<PlaybackEmbedResult>;
+}
+
+/**
+ * Helper to produce a standard descriptor from a PlaybackProvider instance.
+ */
+export function getProviderDescriptor(
+  provider: PlaybackProvider
+): PlaybackProviderDescriptor {
+  const isConfig = provider.isConfigured();
+  const isAvail =
+    typeof provider.isAvailable === "function" ? provider.isAvailable() : isConfig;
+  return {
+    id: provider.id,
+    name: provider.name,
+    supportedMediaTypes: provider.supportedMediaTypes ?? ["movie", "tv"],
+    isConfigured: isConfig,
+    isAvailable: isAvail,
+    capabilities: provider.capabilities,
+  };
 }

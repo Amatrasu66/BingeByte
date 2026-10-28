@@ -12,7 +12,10 @@ import {
   WatchErrorState,
   WatchSkeleton,
 } from "@/components/watch";
-import { getDefaultPlaybackProvider } from "@/lib/playback";
+import {
+  resolvePlaybackWithProvider,
+  getAvailableProviderDescriptors,
+} from "@/lib/playback";
 import {
   parseWatchParams,
   getMovieDetails,
@@ -89,8 +92,8 @@ async function WatchContent({ searchParams }: WatchPageProps) {
     );
   }
 
-  const { type, id, season = 1, episode = 1 } = validation.data;
-  const playbackProvider = getDefaultPlaybackProvider();
+  const { type, id, season = 1, episode = 1, provider } = validation.data;
+  const availableProviders = getAvailableProviderDescriptors();
 
   if (type === "movie") {
     // Execute movie metadata and playback stream queries in parallel
@@ -103,10 +106,13 @@ async function WatchContent({ searchParams }: WatchPageProps) {
         (val) => ({ status: "fulfilled" as const, value: val }),
         (err) => ({ status: "rejected" as const, reason: err })
       ),
-      playbackProvider.resolvePlayback({
-        mediaType: "movie",
-        tmdbId: id,
-      }),
+      resolvePlaybackWithProvider(
+        {
+          mediaType: "movie",
+          tmdbId: id,
+        },
+        provider
+      ),
     ]);
 
     if (movieRes.status === "rejected") {
@@ -154,6 +160,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
             mediaId={id}
             posterPath={movie.posterPath}
             backdropPath={movie.backdropPath}
+            availableProviders={availableProviders}
           />
 
           <TMDBAttribution />
@@ -176,12 +183,15 @@ async function WatchContent({ searchParams }: WatchPageProps) {
       (val) => ({ status: "fulfilled" as const, value: val }),
       (err) => ({ status: "rejected" as const, reason: err })
     ),
-    playbackProvider.resolvePlayback({
-      mediaType: "tv",
-      tmdbId: id,
-      season,
-      episode,
-    }),
+    resolvePlaybackWithProvider(
+      {
+        mediaType: "tv",
+        tmdbId: id,
+        season,
+        episode,
+      },
+      provider
+    ),
   ]);
 
   if (tvRes.status === "rejected") {
@@ -246,6 +256,7 @@ async function WatchContent({ searchParams }: WatchPageProps) {
           posterPath={show.posterPath}
           backdropPath={show.backdropPath}
           episodeTitle={currentEpisode?.name}
+          availableProviders={availableProviders}
         />
 
         {show.seasons && show.seasons.length > 0 && (

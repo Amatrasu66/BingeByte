@@ -8,6 +8,7 @@ export interface ValidatedWatchParams {
   id: number;
   season?: number;
   episode?: number;
+  provider?: string;
 }
 
 export type WatchParamsValidationResult =
@@ -33,6 +34,7 @@ export function parseWatchParams(
   const rawId = getParam("id")?.trim();
   const rawSeason = getParam("season")?.trim();
   const rawEpisode = getParam("episode")?.trim();
+  const rawProvider = getParam("provider")?.trim().toLowerCase();
 
   // Validate type: must be "movie" or "tv"
   if (!rawType) {
@@ -119,6 +121,7 @@ export function parseWatchParams(
       id,
       season,
       episode,
+      ...(rawProvider ? { provider: rawProvider } : {}),
     },
   };
 }

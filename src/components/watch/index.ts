@@ -16,4 +16,7 @@ export type { TVEpisodeNavigationProps } from "./tv-episode-navigation";
 export { WatchErrorState } from "./watch-error-state";
 export type { WatchErrorStateProps } from "./watch-error-state";
 
+export { ProviderSelector } from "./provider-selector";
+export type { ProviderSelectorProps } from "./provider-selector";
+
 export { WatchSkeleton } from "./watch-skeleton";

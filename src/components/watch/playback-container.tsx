@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
-import type { PlaybackEmbedResult } from "@/lib/playback";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { PlaybackEmbedResult, PlaybackProviderDescriptor } from "@/lib/playback";
 import type { NormalizedVideo } from "@/lib/tmdb/types";
 import { saveWatchProgress } from "@/lib/storage/continue-watching";
 import { EmbedPlayer } from "./embed-player";
@@ -20,6 +20,7 @@ export interface PlaybackContainerProps {
   posterPath?: string | null;
   backdropPath?: string | null;
   episodeTitle?: string;
+  availableProviders?: PlaybackProviderDescriptor[];
 }
 
 export function PlaybackContainer({
@@ -34,13 +35,100 @@ export function PlaybackContainer({
   posterPath = null,
   backdropPath = null,
   episodeTitle,
+  availableProviders = [],
 }: PlaybackContainerProps) {
   const [activeMode, setActiveMode] = useState<"stream" | "trailer">(initialMode);
+  const [selectedProviderResult, setSelectedProviderResult] = useState<PlaybackEmbedResult | null>(null);
+  const [prevPlaybackResult, setPrevPlaybackResult] = useState<PlaybackEmbedResult>(playbackResult);
+  const [isResolvingProvider, setIsResolvingProvider] = useState<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Adjust state during render when incoming playbackResult prop changes (e.g. episode navigation)
+  if (playbackResult !== prevPlaybackResult) {
+    setPrevPlaybackResult(playbackResult);
+    setSelectedProviderResult(null);
+  }
+
+  const currentResult = selectedProviderResult ?? playbackResult;
+
   const hasTrailer = Boolean(trailer);
+
+  // Clean up any pending abort controllers on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Provider switching handler with race condition prevention
+  const handleSelectProvider = useCallback(
+    async (newProviderId: string) => {
+      if (isResolvingProvider || newProviderId === currentResult.providerId) {
+        return;
+      }
+
+      // Cancel previous in-flight request to avoid stale overwrites
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      setIsResolvingProvider(true);
+
+      try {
+        const params = new URLSearchParams({
+          type: mediaType,
+          id: String(mediaId),
+          provider: newProviderId,
+        });
+        if (mediaType === "tv") {
+          if (typeof season === "number") params.set("season", String(season));
+          if (typeof episode === "number") params.set("episode", String(episode));
+        }
+
+        const res = await fetch(`/api/playback/resolve?${params.toString()}`, {
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Server returned HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        if (data && data.result) {
+          setSelectedProviderResult(data.result);
+          // Seamlessly update URL without a disruptive page reload
+          if (typeof window !== "undefined") {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("provider", newProviderId);
+            window.history.replaceState({}, "", nextUrl.toString());
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return; // Intentionally aborted by another user action
+        }
+        setSelectedProviderResult({
+          status: "api_error",
+          providerId: newProviderId,
+          providerName: newProviderId,
+          reason:
+            "Failed to resolve playback from the selected provider. Please try again or switch providers.",
+          target: currentResult.target,
+        });
+      } finally {
+        setIsResolvingProvider(false);
+      }
+    },
+    [isResolvingProvider, currentResult, mediaType, mediaId, season, episode]
+  );
 
   // Automatically record watch progress when stream is ready
   useEffect(() => {
-    if (playbackResult.status === "ready") {
+    if (currentResult.status === "ready") {
       saveWatchProgress({
         mediaType,
         tmdbId: mediaId,
@@ -52,7 +140,17 @@ export function PlaybackContainer({
         episodeTitle,
       });
     }
-  }, [playbackResult.status, mediaType, mediaId, title, posterPath, backdropPath, season, episode, episodeTitle]);
+  }, [
+    currentResult.status,
+    mediaType,
+    mediaId,
+    title,
+    posterPath,
+    backdropPath,
+    season,
+    episode,
+    episodeTitle,
+  ]);
 
   return (
     <div className="w-full space-y-4">
@@ -73,14 +171,14 @@ export function PlaybackContainer({
           >
             <span
               className={`h-2 w-2 rounded-full ${
-                playbackResult.status === "ready"
+                currentResult.status === "ready"
                   ? "bg-emerald-500 animate-pulse"
                   : "bg-neutral-500"
               }`}
               aria-hidden="true"
             />
             <span>Watch Stream</span>
-            {playbackResult.status === "ready" && (
+            {currentResult.status === "ready" && (
               <span className="rounded px-1 text-[10px] bg-emerald-500/10 text-emerald-400">
                 Online
               </span>
@@ -118,7 +216,7 @@ export function PlaybackContainer({
       {/* Render Active Player */}
       {activeMode === "stream" ? (
         <EmbedPlayer
-          result={playbackResult}
+          result={currentResult}
           title={title}
           mediaType={mediaType}
           mediaId={mediaId}
@@ -126,6 +224,9 @@ export function PlaybackContainer({
           episode={episode}
           hasTrailer={hasTrailer}
           onSwitchToTrailer={() => setActiveMode("trailer")}
+          availableProviders={availableProviders}
+          onSelectProvider={handleSelectProvider}
+          isResolvingProvider={isResolvingProvider}
         />
       ) : (
         <TrailerPlayer trailer={trailer} title={title} />

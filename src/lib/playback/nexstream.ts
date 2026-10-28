@@ -17,6 +17,8 @@ import {
   PlaybackTarget,
   PlaybackProviderConfig,
   PlaybackSource,
+  PlaybackMediaType,
+  PlaybackProviderCapabilities,
 } from "./types";
 
 export interface NexStreamConfig extends PlaybackProviderConfig {
@@ -169,6 +171,10 @@ function isTransientPlaybackNetworkError(error: unknown): boolean {
 export class NexStreamAdapter implements PlaybackProvider {
   public readonly id = "nextstream";
   public readonly name = "NextStream";
+  public readonly supportedMediaTypes: ReadonlyArray<PlaybackMediaType> = Object.freeze(["movie", "tv"]);
+  public readonly capabilities: PlaybackProviderCapabilities = Object.freeze({
+    supportsExtractionServers: true,
+  });
 
   private readonly explicitConfig?: NexStreamConfig;
 
@@ -228,6 +234,13 @@ export class NexStreamAdapter implements PlaybackProvider {
    */
   public isConfigured(): boolean {
     return this.getBaseUrl() !== null && this.getApiKey() !== null;
+  }
+
+  /**
+   * Checks whether the provider is available and ready for playback.
+   */
+  public isAvailable(): boolean {
+    return this.isConfigured();
   }
 
   /**
