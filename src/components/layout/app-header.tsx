@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
@@ -10,14 +12,40 @@ import { cn } from "@/lib/utils";
 
 export interface AppHeaderProps {
   className?: string;
+  isCinematic?: boolean;
   onSearchClick?: () => void;
 }
 
-export function AppHeader({ className, onSearchClick }: AppHeaderProps) {
+export function AppHeader({ className, isCinematic = false, onSearchClick }: AppHeaderProps) {
+  const [isScrolled, setIsScrolled] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isCinematic) return;
+
+    const handleScroll = () => {
+      const offset = window.scrollY;
+      setIsScrolled(offset > 30);
+    };
+
+    // Initial check
+    handleScroll();
+
+    // Use passive listener per Vercel performance best practices
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isCinematic]);
+
   return (
     <header
       className={cn(
-        "sticky top-0 z-40 w-full border-b border-[var(--color-border-subtle)] bg-[var(--color-background)]/90 backdrop-blur-sm",
+        isCinematic
+          ? cn(
+              "fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 ease-out",
+              isScrolled
+                ? "border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)]/95 backdrop-blur-md shadow-md"
+                : "border-b border-transparent bg-gradient-to-b from-[var(--color-surface-deep)]/80 via-[var(--color-surface-deep)]/30 to-transparent"
+            )
+          : "sticky top-0 z-40 w-full border-b border-[var(--color-border-subtle)] bg-[var(--color-background)]/90 backdrop-blur-sm",
         className
       )}
     >
@@ -55,7 +83,7 @@ export function AppHeader({ className, onSearchClick }: AppHeaderProps) {
             <Link
               href="/search"
               aria-label="Search entertainment catalog"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)] focus-ring transition-colors duration-150"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]/80 focus-ring transition-colors duration-150"
             >
               <Search className="h-4 w-4" />
             </Link>

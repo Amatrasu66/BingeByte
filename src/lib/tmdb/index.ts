@@ -54,5 +54,7 @@ export * from "./anime";
 export * from "./search";
 export * from "./trending";
 export * from "./discover";
+export * from "./genres";
+export * from "./featured";
 export * from "./errors";
 export * from "./watch-params";

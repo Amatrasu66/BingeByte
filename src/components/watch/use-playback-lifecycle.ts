@@ -13,7 +13,15 @@ export interface UsePlaybackLifecycleOptions {
   className?: string;
   onLoad?: () => void;
   onError?: () => void;
+  onTimeout?: () => void;
+  timeoutMs?: number;
   enabled?: boolean;
+  providerId?: string;
+  serverId?: string;
+  mediaType?: "movie" | "tv";
+  tmdbId?: number;
+  season?: number;
+  episode?: number;
 }
 
 /**
@@ -22,7 +30,8 @@ export interface UsePlaybackLifecycleOptions {
  * 1. Audio and video playback stop promptly when navigating away from /watch.
  * 2. Inactive React 19 Activity boundaries cannot retain executing background audio.
  * 3. Event listeners (pagehide, beforeunload) and DOM nodes are cleanly disposed.
- * 4. Returning to the watch page or changing streams creates a fresh, working session.
+ * 4. Bounded initialization timeout transitions stalled loading states to actionable retry/server choices.
+ * 5. Returning to the watch page or changing streams creates a fresh, working session.
  */
 export function usePlaybackLifecycle({
   containerRef,
@@ -33,7 +42,15 @@ export function usePlaybackLifecycle({
   className,
   onLoad,
   onError,
+  onTimeout,
+  timeoutMs = 15000,
   enabled = true,
+  providerId,
+  serverId,
+  mediaType,
+  tmdbId,
+  season,
+  episode,
 }: UsePlaybackLifecycleOptions) {
   const pathname = usePathname();
   const sessionRef = useRef<PlaybackSession | null>(null);
@@ -70,6 +87,14 @@ export function usePlaybackLifecycle({
       className,
       onLoad,
       onError,
+      onTimeout,
+      timeoutMs,
+      providerId,
+      serverId,
+      mediaType,
+      tmdbId,
+      season,
+      episode,
     });
     sessionRef.current = session;
 
@@ -104,5 +129,13 @@ export function usePlaybackLifecycle({
     containerRef,
     onLoad,
     onError,
+    onTimeout,
+    timeoutMs,
+    providerId,
+    serverId,
+    mediaType,
+    tmdbId,
+    season,
+    episode,
   ]);
 }

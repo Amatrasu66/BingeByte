@@ -15,6 +15,7 @@ export interface MediaCardProps {
   href?: string;
   onClick?: () => void;
   className?: string;
+  sizes?: string;
 }
 
 export { mediaItemToCardProps } from "@/lib/tmdb/normalizers";
@@ -36,6 +37,7 @@ export function MediaCard({
   href,
   onClick,
   className,
+  sizes = "(max-width: 640px) 160px, (max-width: 1024px) 200px, 220px",
 }: MediaCardProps) {
   const resolvedHref =
     href ??
@@ -47,14 +49,14 @@ export function MediaCard({
   const cardContent = (
     <article className="group relative flex flex-col text-left focus-ring rounded-md">
       {/* 2:3 Poster Frame */}
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-deep)] transition-colors duration-200 group-hover:border-[var(--color-border-hover)]">
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface-deep)] transition-all duration-250 ease-out group-hover:border-[var(--color-border-hover)]">
         {posterUrl ? (
           <Image
             src={posterUrl}
             alt={title}
             fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-            className="object-cover transition-transform duration-200 motion-reduce:transform-none group-hover:scale-[1.03]"
+            sizes={sizes}
+            className="object-cover transition-transform duration-300 ease-out motion-reduce:transform-none group-hover:scale-[1.03]"
           />
         ) : (
           /* Filmic fallback container with subtle graphic treatment */
@@ -85,16 +87,22 @@ export function MediaCard({
           </div>
         )}
 
+        {/* Subtle hover gradient overlay */}
+        <div
+          className="absolute inset-0 bg-gradient-to-t from-[var(--color-surface-deep)]/60 via-transparent to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          aria-hidden="true"
+        />
+
         {/* Quality or Rating Badge (Overlaid on top corner) */}
         {(quality || rating) && (
-          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+          <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
             {quality && (
-              <span className="rounded bg-[var(--color-surface-deep)]/85 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] backdrop-blur-xs">
+              <span className="rounded bg-[var(--color-surface-deep)]/90 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] backdrop-blur-xs">
                 {quality}
               </span>
             )}
             {rating && (
-              <span className="rounded bg-[var(--color-surface-deep)]/85 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] backdrop-blur-xs">
+              <span className="rounded bg-[var(--color-surface-deep)]/90 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--color-text-primary)] border border-[var(--color-border-subtle)] backdrop-blur-xs">
                 ★ {rating}
               </span>
             )}

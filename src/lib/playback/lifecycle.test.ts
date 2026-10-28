@@ -429,5 +429,107 @@ describe("Phase 14B Playback Lifecycle & Navigation Repair", () => {
 
       coordinator.abort();
     });
+
+    it("should report hasActiveRequest accurately throughout resolution lifecycle", () => {
+      const coordinator = new PlaybackResolutionCoordinator();
+      assert.strictEqual(coordinator.hasActiveRequest(), false);
+
+      coordinator.startRequest();
+      assert.strictEqual(coordinator.hasActiveRequest(), true);
+
+      coordinator.abort();
+      assert.strictEqual(coordinator.hasActiveRequest(), false);
+    });
+  });
+
+  describe("Phase 14D Playback Reliability & Bounded Initialization", () => {
+    it("should trigger onTimeout when iframe loading exceeds bounded timeout window", async () => {
+      let timedOut = false;
+      let errored = false;
+
+      const session = createPlaybackSession({
+        container: mockContainer as unknown as HTMLElement,
+        streamUrl: "https://framextv.cc/embed/550",
+        title: "Timeout Test",
+        timeoutMs: 40,
+        providerId: "framextv",
+        mediaType: "movie",
+        tmdbId: 550,
+        onTimeout: () => {
+          timedOut = true;
+        },
+        onError: () => {
+          errored = true;
+        },
+      });
+
+      assert.strictEqual(timedOut, false);
+      // Wait for timer to fire
+      await new Promise((resolve) => setTimeout(resolve, 60));
+
+      assert.strictEqual(timedOut, true);
+      assert.strictEqual(errored, false);
+
+      session.dispose();
+    });
+
+    it("should cancel timeout timer if iframe load event fires before timeout window", async () => {
+      let timedOut = false;
+      let loaded = false;
+
+      const session = createPlaybackSession({
+        container: mockContainer as unknown as HTMLElement,
+        streamUrl: "https://framextv.cc/embed/550",
+        title: "Load Precedence Test",
+        timeoutMs: 80,
+        providerId: "framextv",
+        mediaType: "movie",
+        tmdbId: 550,
+        onLoad: () => {
+          loaded = true;
+        },
+        onTimeout: () => {
+          timedOut = true;
+        },
+      });
+
+      const iframe = mockContainer.children[0];
+      // Dispatch load event quickly
+      iframe.dispatchEvent("load");
+      assert.strictEqual(loaded, true);
+
+      // Wait beyond the original timeoutMs
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      assert.strictEqual(timedOut, false);
+
+      session.dispose();
+    });
+
+    it("should cancel timeout timer immediately when session is disposed", async () => {
+      let timedOut = false;
+
+      const session = createPlaybackSession({
+        container: mockContainer as unknown as HTMLElement,
+        streamUrl: "https://framextv.cc/embed/550",
+        title: "Disposal Precedence Test",
+        timeoutMs: 50,
+        providerId: "framextv",
+        mediaType: "movie",
+        tmdbId: 550,
+        onTimeout: () => {
+          timedOut = true;
+        },
+      });
+
+      // Dispose before timer fires
+      session.dispose();
+
+      // Wait beyond timeoutMs
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      assert.strictEqual(timedOut, false);
+      assert.strictEqual(session.isActive, false);
+    });
   });
 });

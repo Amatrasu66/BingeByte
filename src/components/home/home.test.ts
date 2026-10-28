@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mediaItemToCardProps } from "@/lib/tmdb/normalizers";
+import { selectFeaturedMedia, FALLBACK_FEATURED_TITLES } from "@/lib/tmdb/featured";
+import { getGenreNames } from "@/lib/tmdb/genres";
 import type { NormalizedMedia } from "@/lib/tmdb/types";
 
 describe("Homepage Component Helpers & Data Mapping", () => {
@@ -97,5 +99,65 @@ describe("Homepage Component Helpers & Data Mapping", () => {
     // Anime section card override
     const animeHref = `/anime/${tvItem.id}`;
     assert.strictEqual(animeHref, "/anime/1399");
+  });
+});
+
+describe("Featured Media Selection Strategy", () => {
+  it("should select items with valid backdrop artwork and substantial overviews while excluding invalid items", () => {
+    const trending: NormalizedMedia[] = [
+      {
+        id: 991,
+        mediaType: "movie",
+        title: "Movie With Backdrop",
+        overview: "A very detailed and exciting cinematic journey across galaxy.",
+        backdropPath: "/path1.jpg",
+        posterPath: "/poster1.jpg",
+        releaseDate: "2024-01-01",
+        voteAverage: 8.1,
+        voteCount: 1000,
+        genreIds: [28, 878],
+        originalLanguage: "en",
+        popularity: 100,
+      },
+      {
+        id: 992,
+        mediaType: "movie",
+        title: "Movie Without Backdrop",
+        overview: "Has no backdrop image.",
+        backdropPath: null,
+        posterPath: "/poster2.jpg",
+        releaseDate: "2024-01-01",
+        voteAverage: 7.5,
+        voteCount: 500,
+        genreIds: [18],
+        originalLanguage: "en",
+        popularity: 50,
+      },
+    ];
+
+    const result = selectFeaturedMedia(trending, null, null, 5);
+    // Verified item with backdrop is included as primary
+    assert.strictEqual(result[0].id, 991);
+    // Item without backdrop is strictly excluded
+    assert.strictEqual(result.some((r) => r.id === 992), false);
+  });
+
+  it("should fall back to curated titles if live lists are empty or null", () => {
+    const result = selectFeaturedMedia(null, null, null, 4);
+    assert.strictEqual(result.length, 4);
+    assert.strictEqual(result[0].id, FALLBACK_FEATURED_TITLES[0].id);
+  });
+});
+
+describe("Genre Mapping Helper", () => {
+  it("should translate TMDB genre IDs into clean genre names", () => {
+    const names = getGenreNames([28, 878, 53], 3);
+    assert.deepStrictEqual(names, ["Action", "Sci-Fi", "Thriller"]);
+  });
+
+  it("should handle null or invalid genre IDs without crashing", () => {
+    assert.deepStrictEqual(getGenreNames(null), []);
+    assert.deepStrictEqual(getGenreNames(undefined), []);
+    assert.deepStrictEqual(getGenreNames([999999]), []);
   });
 });

@@ -7,6 +7,7 @@ import {
   PlaybackEmbedResult,
   PlaybackProviderDescriptor,
   PlaybackResolutionCoordinator,
+  recordPlaybackDiagnostic,
 } from "@/lib/playback";
 import type { NormalizedVideo } from "@/lib/tmdb/types";
 import { saveWatchProgress } from "@/lib/storage/continue-watching";
@@ -53,6 +54,7 @@ export function PlaybackContainer({
   if (playbackResult !== prevPlaybackResult) {
     setPrevPlaybackResult(playbackResult);
     setSelectedProviderResult(null);
+    setIsResolvingProvider(false);
   }
 
   const currentResult = selectedProviderResult ?? playbackResult;
@@ -75,6 +77,17 @@ export function PlaybackContainer({
       if (isResolvingProvider || newProviderId === currentResult.providerId) {
         return;
       }
+
+      // Record provider switch diagnostic
+      recordPlaybackDiagnostic({
+        type: "provider_switch_requested",
+        providerId: newProviderId,
+        mediaType,
+        tmdbId: mediaId,
+        season,
+        episode,
+        timestamp: Date.now(),
+      });
 
       // Start new request through coordinator, cancelling previous in-flight attempts
       const { signal, requestId } = coordinatorRef.current.startRequest();
@@ -130,7 +143,7 @@ export function PlaybackContainer({
           target: currentResult.target,
         });
       } finally {
-        if (coordinatorRef.current.isLatest(requestId)) {
+        if (coordinatorRef.current.isLatest(requestId) || !coordinatorRef.current.hasActiveRequest()) {
           setIsResolvingProvider(false);
         }
       }

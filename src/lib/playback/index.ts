@@ -13,6 +13,7 @@ export * from "./framextv";
 export * from "./security";
 export * from "./registry";
 export * from "./lifecycle";
+export * from "./diagnostics";
 
 /**
  * Returns the active default playback provider.

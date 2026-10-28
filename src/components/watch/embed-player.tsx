@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import type { PlaybackEmbedResult, PlaybackProviderDescriptor } from "@/lib/playback";
+import {
+  type PlaybackEmbedResult,
+  type PlaybackProviderDescriptor,
+  recordPlaybackDiagnostic,
+} from "@/lib/playback";
 import { ProviderSelector } from "./provider-selector";
 import { usePlaybackLifecycle } from "./use-playback-lifecycle";
 
@@ -36,18 +40,20 @@ export function EmbedPlayer({
 }: EmbedPlayerProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
   const [retryCount, setRetryCount] = useState<number>(0);
   const [selectedSourceIndex, setSelectedSourceIndex] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Synchronize target changes (e.g. navigating between TV episodes or movie-to-tv)
-  const currentTarget = `${mediaType}:${mediaId}:${season ?? ""}:${episode ?? ""}`;
-  const [prevTarget, setPrevTarget] = useState<string>(currentTarget);
-  if (currentTarget !== prevTarget) {
-    setPrevTarget(currentTarget);
+  // Synchronize target and provider changes (e.g. navigating between TV episodes or switching providers)
+  const currentContext = `${mediaType}:${mediaId}:${season ?? ""}:${episode ?? ""}:${result.providerId}:${result.status === "ready" ? result.url : ""}`;
+  const [prevContext, setPrevContext] = useState<string>(currentContext);
+  if (currentContext !== prevContext) {
+    setPrevContext(currentContext);
     setSelectedSourceIndex(0);
     setIsLoading(true);
     setHasError(false);
+    setIsTimedOut(false);
   }
 
   const availableSources = React.useMemo(() => {
@@ -69,24 +75,55 @@ export function EmbedPlayer({
     streamUrl: activeStreamUrl,
     title,
     enabled: result.status === "ready" && !hasError,
-    onLoad: () => setIsLoading(false),
+    timeoutMs: 15000,
+    onLoad: () => {
+      setIsLoading(false);
+      setIsTimedOut(false);
+    },
     onError: () => {
       setIsLoading(false);
       setHasError(true);
     },
+    onTimeout: () => {
+      setIsLoading(false);
+      setIsTimedOut(true);
+      setHasError(true);
+    },
+    providerId: result.providerId,
+    serverId: activeSource?.serverId,
+    mediaType,
+    tmdbId: mediaId,
+    season,
+    episode,
   });
 
   const handleRetry = useCallback(() => {
     setIsLoading(true);
     setHasError(false);
+    setIsTimedOut(false);
     setRetryCount((prev) => prev + 1);
   }, []);
 
-  const handleSourceSelect = useCallback((index: number) => {
-    setSelectedSourceIndex(index);
-    setIsLoading(true);
-    setHasError(false);
-  }, []);
+  const handleSourceSelect = useCallback(
+    (index: number) => {
+      const selected = availableSources[index];
+      recordPlaybackDiagnostic({
+        type: "server_switch_requested",
+        providerId: result.providerId,
+        serverId: selected?.serverId || `server-${index + 1}`,
+        mediaType,
+        tmdbId: mediaId,
+        season,
+        episode,
+        timestamp: Date.now(),
+      });
+      setSelectedSourceIndex(index);
+      setIsLoading(true);
+      setHasError(false);
+      setIsTimedOut(false);
+    },
+    [availableSources, result.providerId, mediaType, mediaId, season, episode]
+  );
 
   const detailsUrl = mediaType === "movie" ? `/movie/${mediaId}` : `/tv/${mediaId}`;
 
@@ -216,10 +253,12 @@ export function EmbedPlayer({
                 </svg>
               </div>
               <h3 className="mt-3 text-sm font-semibold text-[var(--color-text-primary)]">
-                Unable to Load Stream Player
+                {isTimedOut ? "Stream Initialization Timed Out" : "Unable to Load Stream Player"}
               </h3>
               <p className="mt-1 max-w-sm text-xs text-[var(--color-text-secondary)]">
-                The stream embed could not be loaded or timed out. Please try reloading the player or choosing an alternate server.
+                {isTimedOut
+                  ? "The stream player took too long to respond. Please try reloading the player or choosing an alternate server."
+                  : "The stream embed could not be loaded. Please try reloading the player or choosing an alternate server."}
               </p>
 
               <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
