@@ -187,19 +187,9 @@ export function FeaturedHero({
           </div>
         )}
 
-        {/* Scrims: Left-concentrated gradient so the poster subject on the right remains clear */}
+        {/* Subtle left-side only black hue at ~20% behind text; 0% hue everywhere else */}
         <div
-          className="absolute inset-0 z-20 bg-gradient-to-t from-[var(--color-background)] via-[var(--color-background)]/70 via-20% to-transparent pointer-events-none"
-          aria-hidden="true"
-        />
-
-        <div
-          className="absolute inset-0 z-20 bg-gradient-to-r from-[var(--color-background)] via-[var(--color-background)]/85 via-35% sm:via-45% to-transparent pointer-events-none"
-          aria-hidden="true"
-        />
-
-        <div
-          className="absolute inset-0 z-20 bg-gradient-to-b from-[var(--color-background)]/80 via-transparent to-transparent h-28 pointer-events-none"
+          className="absolute inset-0 z-20 bg-gradient-to-r from-black/20 via-black/10 via-30% to-transparent pointer-events-none"
           aria-hidden="true"
         />
       </div>
@@ -208,7 +198,7 @@ export function FeaturedHero({
       <div className="relative z-30 w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-8 sm:pb-12 lg:pb-14 pt-20 flex flex-col justify-end">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
           {/* Main Title, Metadata, Synopsis & Call-to-Actions (Left 8 Cols) */}
-          <div className="lg:col-span-8 space-y-4">
+          <div className="lg:col-span-8 space-y-3.5">
             {mediaList.map((item, index) => {
               const isActive = index === activeIndex;
               if (!isActive) return null;
@@ -236,12 +226,12 @@ export function FeaturedHero({
                 >
                   {/* Category Pill & Primary Metadata Line */}
                   <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
-                    <span className="rounded bg-[var(--color-surface)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-primary)] border border-[var(--color-border-subtle)]">
+                    <span className="rounded bg-black/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white border border-white/20 backdrop-blur-xs shadow-sm">
                       PREMIUM
                     </span>
 
                     {releaseYear && (
-                      <span className="text-[var(--color-text-secondary)] font-normal">
+                      <span className="text-neutral-200 font-normal drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                         {releaseYear}
                       </span>
                     )}
@@ -249,12 +239,12 @@ export function FeaturedHero({
                     {genres.length > 0 && (
                       <>
                         <span
-                          className="text-[var(--color-border-subtle)]"
+                          className="text-neutral-400"
                           aria-hidden="true"
                         >
                           •
                         </span>
-                        <span className="text-[var(--color-text-secondary)] font-normal">
+                        <span className="text-neutral-200 font-normal drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
                           {genres.join(" • ")}
                         </span>
                       </>
@@ -263,38 +253,38 @@ export function FeaturedHero({
                     {rating && (
                       <>
                         <span
-                          className="text-[var(--color-border-subtle)]"
+                          className="text-neutral-400"
                           aria-hidden="true"
                         >
                           •
                         </span>
-                        <span className="text-[var(--color-text-primary)] font-semibold flex items-center gap-1">
-                          <span className="text-[var(--color-white)]">★</span> {rating}
+                        <span className="text-white font-semibold flex items-center gap-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
+                          <span>★</span> {rating}
                         </span>
                       </>
                     )}
                   </div>
 
-                  {/* Refined, readable heading that does not block the poster subject */}
-                  <h1 className="mt-2 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-[var(--color-text-primary)] leading-[1.1] line-clamp-2 max-w-xl">
+                  {/* Refined, compact heading that never obscures the poster subject */}
+                  <h1 className="mt-2 text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight text-white leading-tight line-clamp-2 max-w-lg drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)]">
                     {item.title}
                   </h1>
 
                   {/* Overview Synopsis - compact and legible */}
                   {item.overview && (
-                    <p className="mt-2.5 text-xs sm:text-sm text-[var(--color-text-secondary)] leading-relaxed line-clamp-2 sm:line-clamp-3 max-w-lg">
+                    <p className="mt-2 text-xs sm:text-[13px] text-neutral-200 leading-relaxed line-clamp-2 max-w-md drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                       {item.overview}
                     </p>
                   )}
 
-                  {/* Hero Actions (Inspired by Reference 1: Watch Now + Add to Favourites / Details) */}
-                  <div className="mt-5 flex flex-wrap items-center gap-3">
+                  {/* Hero Actions (Inspired by Reference 1: Watch Now + Details) */}
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
                     <Link href={watchHref} tabIndex={0}>
                       <button
                         type="button"
-                        className="inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-full bg-[var(--color-white)] px-5 text-xs sm:text-sm font-semibold text-[var(--color-background)] hover:bg-[#E5E5E5] transition-colors cursor-pointer focus-ring shadow-md"
+                        className="inline-flex h-8 sm:h-9 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-semibold text-black hover:bg-neutral-200 transition-colors cursor-pointer focus-ring shadow-lg"
                       >
-                        <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                        <Play className="h-3 w-3 fill-current" aria-hidden="true" />
                         Watch Now
                       </button>
                     </Link>
@@ -302,9 +292,9 @@ export function FeaturedHero({
                     <Link href={detailHref} tabIndex={0}>
                       <button
                         type="button"
-                        className="inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-full border border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 px-4 text-xs sm:text-sm font-medium text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] hover:bg-[var(--color-surface-elevated)] transition-colors cursor-pointer focus-ring"
+                        className="inline-flex h-8 sm:h-9 items-center justify-center gap-2 rounded-full border border-white/20 bg-black/50 backdrop-blur-xs px-3.5 text-xs font-medium text-white hover:bg-black/80 hover:border-white/40 transition-colors cursor-pointer focus-ring shadow-md"
                       >
-                        <Info className="h-3.5 w-3.5 text-[var(--color-text-secondary)]" aria-hidden="true" />
+                        <Info className="h-3 w-3 text-neutral-300" aria-hidden="true" />
                         View Details
                       </button>
                     </Link>
@@ -314,11 +304,11 @@ export function FeaturedHero({
             })}
 
             {/* "Trailers & More" Preview Cards (Reference 1 inspired) */}
-            <div className="pt-2 hidden sm:block">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)] block mb-2">
+            <div className="pt-1.5 hidden sm:block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] block mb-1.5">
                 Trailers & More
               </span>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5">
                 {previewItems.map(({ item, index }) => {
                   const thumbUrl = getBackdropUrl(item.backdropPath, "w300");
 
@@ -328,22 +318,22 @@ export function FeaturedHero({
                       type="button"
                       onClick={() => goToSlide(index)}
                       aria-label={`Switch to ${item.title}`}
-                      className="group relative h-14 w-24 sm:h-16 sm:w-28 rounded-md overflow-hidden border border-[var(--color-border-subtle)] hover:border-[var(--color-border-hover)] bg-[var(--color-surface)] transition-all duration-200 cursor-pointer focus-ring flex-none"
+                      className="group relative h-12 w-20 sm:h-14 sm:w-24 rounded overflow-hidden border border-white/20 hover:border-white/60 bg-black/40 transition-all duration-200 cursor-pointer focus-ring flex-none shadow-md"
                     >
                       {thumbUrl ? (
                         <Image
                           src={thumbUrl}
                           alt=""
                           fill
-                          sizes="112px"
+                          sizes="96px"
                           className="object-cover transition-transform duration-300 group-hover:scale-105"
                         />
                       ) : (
                         <div className="w-full h-full bg-[var(--color-surface)]" />
                       )}
-                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 flex items-center justify-center transition-colors">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 backdrop-blur-xs text-white group-hover:scale-110 transition-transform">
-                          <Play className="h-2.5 w-2.5 fill-white ml-0.5" />
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent flex items-center justify-center transition-colors">
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/25 backdrop-blur-xs text-white group-hover:scale-110 transition-transform">
+                          <Play className="h-2 w-2 fill-white ml-0.5" />
                         </div>
                       </div>
                     </button>
@@ -361,7 +351,7 @@ export function FeaturedHero({
                 type="button"
                 onClick={prevSlide}
                 aria-label="Previous featured title"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] hover:bg-[var(--color-surface-elevated)] transition-colors cursor-pointer focus-ring"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/20 bg-black/40 text-white hover:bg-black/70 hover:border-white/40 transition-colors cursor-pointer focus-ring shadow-md"
               >
                 <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -377,10 +367,10 @@ export function FeaturedHero({
                 }
                 title={isPaused ? "Resume rotation (3s)" : "Pause rotation"}
                 className={cn(
-                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors cursor-pointer focus-ring",
+                  "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors cursor-pointer focus-ring shadow-md",
                   isPaused
-                    ? "border-[var(--color-white)] bg-[var(--color-white)] text-[var(--color-background)]"
-                    : "border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] hover:bg-[var(--color-surface-elevated)]"
+                    ? "border-white bg-white text-black"
+                    : "border-white/20 bg-black/40 text-white hover:bg-black/70 hover:border-white/40"
                 )}
               >
                 {isPaused ? (
@@ -395,7 +385,7 @@ export function FeaturedHero({
                 type="button"
                 onClick={nextSlide}
                 aria-label="Next featured title"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-surface)]/80 text-[var(--color-text-primary)] hover:border-[var(--color-border-hover)] hover:bg-[var(--color-surface-elevated)] transition-colors cursor-pointer focus-ring"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-white/20 bg-black/40 text-white hover:bg-black/70 hover:border-white/40 transition-colors cursor-pointer focus-ring shadow-md"
               >
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -421,8 +411,8 @@ export function FeaturedHero({
                     className={cn(
                       "h-1 rounded-full transition-all duration-300 cursor-pointer focus-ring",
                       isCurrent
-                        ? "w-6 bg-[var(--color-white)]"
-                        : "w-2 bg-[var(--color-border-subtle)] hover:bg-[var(--color-text-muted)]"
+                        ? "w-6 bg-white"
+                        : "w-2 bg-white/30 hover:bg-white/60"
                     )}
                   />
                 );

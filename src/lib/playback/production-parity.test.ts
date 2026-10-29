@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   FrameXTVAdapter,
   resetProviderRegistry,
-  getAvailablePlaybackProviders,
   getAvailableProviderDescriptors,
   resolvePlaybackWithProvider,
   type PlaybackTarget,
@@ -14,6 +13,8 @@ describe("Phase 14D.2 Production Playback Provider Selection & Parity", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    process.env.NEXSTREAM_API_KEY = "test-nexstream-key";
+    process.env.NEXSTREAM_BASE_URL = "https://api.codespecters.com";
     delete process.env.ENABLE_FRAMEXTV_PROVIDER;
     delete process.env.FRAMEXTV_PRODUCTION_APPROVED;
     resetProviderRegistry();
@@ -129,23 +130,37 @@ describe("Phase 14D.2 Production Playback Provider Selection & Parity", () => {
       }
     });
 
-    it("should preserve TV season and episode when switching between providers in approved production", async () => {
+    it("should resolve FrameXTV TV series episodes in production when approved", async () => {
       (process.env as Record<string, string | undefined>).NODE_ENV = "production";
       process.env.ENABLE_FRAMEXTV_PROVIDER = "true";
       process.env.FRAMEXTV_PRODUCTION_APPROVED = "true";
       resetProviderRegistry();
 
-      // Resolve TV with NexStream
-      const nexRes = await resolvePlaybackWithProvider(tvTarget, "nextstream");
-      assert.strictEqual(nexRes.status, "ready");
-      assert.strictEqual(nexRes.providerId, "nextstream");
+      const res = await resolvePlaybackWithProvider(tvTarget, "framextv");
+      assert.strictEqual(res.status, "ready");
+      assert.strictEqual(res.providerId, "framextv");
+      if (res.status === "ready") {
+        assert.match(res.url, /\/embed\/1399\/1\/1/);
+        assert.strictEqual(res.sources?.length, 4);
+      }
+    });
 
-      // Switch to FrameXTV
-      const framexRes = await resolvePlaybackWithProvider(tvTarget, "framextv");
-      assert.strictEqual(framexRes.status, "ready");
-      assert.strictEqual(framexRes.providerId, "framextv");
-      if (framexRes.status === "ready") {
-        assert.match(framexRes.url, /\/embed\/1399\/1\/1/);
+    it("should resolve FrameXTV TV specials (season 0) and preserve season/episode in approved production", async () => {
+      (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+      process.env.ENABLE_FRAMEXTV_PROVIDER = "true";
+      process.env.FRAMEXTV_PRODUCTION_APPROVED = "true";
+      resetProviderRegistry();
+
+      const tvSpecialTarget: PlaybackTarget = { mediaType: "tv", tmdbId: 1399, season: 0, episode: 2 };
+      const res = await resolvePlaybackWithProvider(tvSpecialTarget, "framextv");
+
+      assert.strictEqual(res.status, "ready");
+      assert.strictEqual(res.providerId, "framextv");
+      if (res.status === "ready") {
+        assert.match(res.url, /\/embed\/1399\/0\/2/);
+        assert.ok(Array.isArray(res.sources));
+        assert.strictEqual(res.sources.length, 4);
+        assert.match(res.sources[1].url, /\/embed\/1399\/0\/2\?server=archer/);
       }
     });
   });

@@ -40,10 +40,10 @@ export function AppHeader({ className, isCinematic = false, onSearchClick }: App
       className={cn(
         isCinematic
           ? cn(
-              "fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 ease-out",
+              "fixed top-0 left-0 right-0 z-50 w-full border-none transition-all duration-300 ease-out",
               isScrolled
-                ? "border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)]/95 backdrop-blur-md shadow-md"
-                : "border-b border-transparent bg-gradient-to-b from-[var(--color-surface-deep)]/80 via-[var(--color-surface-deep)]/30 to-transparent"
+                ? "bg-[var(--color-surface)]/95 backdrop-blur-md shadow-md"
+                : "bg-transparent"
             )
           : "sticky top-0 z-40 w-full border-b border-[var(--color-border-subtle)] bg-[var(--color-background)]/90 backdrop-blur-sm",
         className
